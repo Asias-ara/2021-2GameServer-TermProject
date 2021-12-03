@@ -112,7 +112,7 @@ public:
 };
 
 OBJECT avatar;
-OBJECT players[MAX_USER];
+OBJECT players[MAX_USER + MAX_NPC];
 
 OBJECT white_tile;
 OBJECT black_tile;
@@ -166,17 +166,15 @@ void ProcessPacket(char* ptr)
 		sc_packet_put_object* my_packet = reinterpret_cast<sc_packet_put_object*>(ptr);
 		int id = my_packet->id;
 
-		//players[id].set_name(my_packet->name);
-
-		if (id < MAX_USER) {
+		if (id < MAX_USER) { // PLAYER
 			players[id].set_name(my_packet->name);
 			players[id].move(my_packet->x, my_packet->y);
 			players[id].show();
 		}
-		else {
-			//npc[id - NPC_START].x = my_packet->x;
-			//npc[id - NPC_START].y = my_packet->y;
-			//npc[id - NPC_START].attr |= BOB_ATTR_VISIBLE;
+		else {  // NPC
+			players[id].set_name(my_packet->name);
+			players[id].move(my_packet->x, my_packet->y);
+			players[id].show();
 		}
 		break;
 	}
@@ -193,8 +191,7 @@ void ProcessPacket(char* ptr)
 			players[other_id].move(my_packet->x, my_packet->y);
 		}
 		else {
-			//npc[other_id - NPC_START].x = my_packet->x;
-			//npc[other_id - NPC_START].y = my_packet->y;
+			players[other_id].move(my_packet->x, my_packet->y);
 		}
 		break;
 	}
@@ -210,7 +207,23 @@ void ProcessPacket(char* ptr)
 			players[other_id].hide();
 		}
 		else {
-			//		npc[other_id - NPC_START].attr &= ~BOB_ATTR_VISIBLE;
+			players[other_id].hide();
+		}
+		break;
+	}
+
+	case SC_PACKET_CHAT:
+	{
+		sc_packet_chat* my_packet = reinterpret_cast<sc_packet_chat*>(ptr);
+		int other_id = my_packet->id;
+		if (other_id == g_myid) {
+			avatar.set_chat(my_packet->message);
+		}
+		else if (other_id < MAX_USER) {
+			players[other_id].set_chat(my_packet->message);
+		}
+		else {
+			players[other_id].set_chat(my_packet->message);
 		}
 		break;
 	}

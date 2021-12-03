@@ -49,6 +49,11 @@ void Npc::set_name(char* name)
 	strncpy_s(_name, name, sizeof(_name));
 }
 
+void Npc::set_active(bool act)
+{
+	_active = act;
+}
+
 void Npc::set_id(int id)
 {
 	_id = id;

@@ -13,6 +13,9 @@ protected:
 
 public:
 	mutex	state_lock;
+	mutex	lua_lock;
+	lua_State* L;
+
 	Npc(int id);
 	Npc(int id, const char* name);
 	~Npc();
@@ -23,6 +26,7 @@ public:
 	void set_state(STATE s);
 	void set_name(char* name);
 	void set_id(int id);
+	void set_active(bool act);
 	void set_tribe(TRIBE tribe);
 
 	int get_x();

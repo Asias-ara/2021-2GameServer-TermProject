@@ -65,4 +65,9 @@
       <Filter>리소스 파일</Filter>
     </Library>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="monster.lua">
+      <Filter>소스 파일</Filter>
+    </None>
+  </ItemGroup>
 </Project>

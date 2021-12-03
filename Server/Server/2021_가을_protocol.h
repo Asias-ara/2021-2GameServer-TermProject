@@ -117,7 +117,7 @@ struct sc_packet_status_change {
 // --------------------------------------------------------
 // 개인 추가 프로토콜
 enum STATE { ST_FREE, ST_ACCEPT, ST_INGAME };
-enum COMP_OP { OP_RECV, OP_SEND, OP_ACCEPT, OP_NPC_MOVE };
+enum COMP_OP { OP_RECV, OP_SEND, OP_ACCEPT, OP_NPC_MOVE, OP_PLAYER_MOVE };
 enum EVENT_TYPE { EVENT_NPC_MOVE };
 enum TRIBE	{HUMAN, MONSTER, BOSS};
 const int BUFSIZE = 256;

@@ -23,7 +23,7 @@
     <ClCompile Include="dummy.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\iocp_single\iocp_single\protocol.h" />
+    <ClInclude Include="..\..\Server\Server\2021_가을_protocol.h" />
     <ClInclude Include="dummy.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

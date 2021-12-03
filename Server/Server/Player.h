@@ -50,7 +50,21 @@ public:
     void do_send(int num_bytes, void* mess)
     {
         EXP_OVER* ex_over = new EXP_OVER(OP_SEND, num_bytes, mess);
-        WSASend(_socket, &ex_over->_wsa_buf, 1, 0, 0, &ex_over->_wsa_over, NULL);
+        int ret = WSASend(_socket, &ex_over->_wsa_buf, 1, 0, 0, &ex_over->_wsa_over, NULL);
+        if (SOCKET_ERROR == ret) {
+            int error_num = WSAGetLastError();
+            if (ERROR_IO_PENDING != error_num) {
+                WCHAR* lpMsgBuf;
+                FormatMessage(
+                    FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+                    NULL, error_num,
+                    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                    (LPTSTR)&lpMsgBuf, 0, 0);
+                wcout << lpMsgBuf << endl;
+                //while (true);
+                LocalFree(lpMsgBuf);
+            }
+        }
     }
 };
 

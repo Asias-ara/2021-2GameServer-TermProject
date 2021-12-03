@@ -115,9 +115,24 @@ void send_put_object(int c_id, int target)
     reinterpret_cast<Player*>(players[c_id])->do_send(sizeof(packet), &packet);
 }
 
+void send_chat_packet(int user_id, int my_id, char* mess)
+{
+    sc_packet_chat packet;
+    packet.id = my_id;
+    packet.size = sizeof(packet);
+    packet.type = SC_PACKET_CHAT;
+    strcpy_s(packet.message, mess);
+    reinterpret_cast<Player*>(players[user_id])->do_send(sizeof(packet), &packet);
+}
+
 bool is_npc(int id)
 {
     return (id >= NPC_ID_START) && (id <= NPC_ID_END);
+}
+
+bool is_player(int id)
+{
+    return (id >= 0) && (id < MAX_USER);
 }
 
 void Disconnect(int c_id)
@@ -129,8 +144,7 @@ void Disconnect(int c_id)
     for (auto& other : my_vl) {
         Player* target = reinterpret_cast<Player*>(players[other]);
         if (true == is_npc(target->get_Id())) break;   // npc일 경우 보내지 않는다
-        if (ST_INGAME != target->get_state())
-            continue;
+        if (ST_INGAME != target->get_state()) continue;
         target->vl.lock();
         if (0 != target->viewlist.count(c_id)) {
             target->viewlist.erase(c_id);
@@ -143,6 +157,15 @@ void Disconnect(int c_id)
     closesocket(reinterpret_cast<Player*>(players[c_id])->_socket);
     players[c_id]->set_state(ST_FREE);
     players[c_id]->state_lock.unlock();
+}
+
+// 스크립트 추가
+void Activate_Player_Move_Event(int target, int player_id)
+{
+    EXP_OVER* exp_over = new EXP_OVER;
+    exp_over->_comp_op = OP_PLAYER_MOVE;
+    exp_over->_target = player_id;
+    PostQueuedCompletionStatus(g_h_iocp, 1, target, &exp_over->_wsa_over);
 }
 
 void process_packet(int client_id, unsigned char* p)
@@ -161,6 +184,9 @@ void process_packet(int client_id, unsigned char* p)
         // 새로 접속한 정보를 다른이에게 보내줌
         for (auto& other : players) {
             if (other->get_Id() == client_id) continue;   // 나다
+
+            if (true == is_npc(other->get_Id())) break;// 만약 내가 있는 곳에 NPC가 있다면
+
             other->state_lock.lock();
             if (ST_INGAME != other->get_state()) {
                 other->state_lock.unlock();
@@ -170,16 +196,16 @@ void process_packet(int client_id, unsigned char* p)
 
             if (false == is_near(other->get_Id(), client_id)) continue;
 
-            if (true == is_npc(other->get_Id())) {   // 근처에 있는 npc
-               // timer 큐에 넣어주자
-                timer_event ev;
-                ev.obj_id = other->get_Id();
-                ev.start_time = chrono::system_clock::now() + 1s;
-                ev.ev = EVENT_NPC_MOVE;
-                ev.target_id = client_id;
-                timer_queue.push(ev);
-                continue;
-            }
+            //if (true == is_npc(other->get_Id())) {   // 근처에 있는 npc
+            //   // timer 큐에 넣어주자
+            //    timer_event ev;
+            //    ev.obj_id = other->get_Id();
+            //    ev.start_time = chrono::system_clock::now() + 1s;
+            //    ev.ev = EVENT_NPC_MOVE;
+            //    ev.target_id = client_id;
+            //    timer_queue.push(ev);
+            //    continue;
+            //}
 
             // 여기는 플레이어 처리
             Player* other_player = reinterpret_cast<Player*>(other);
@@ -209,6 +235,11 @@ void process_packet(int client_id, unsigned char* p)
 
             if (false == is_near(other->get_Id(), client_id))
                 continue;
+
+            // 스크립트와 함께 추가된 부분
+            if (true == is_npc(other->get_Id())) {	// 시야에 npc가 있다면 
+                Activate_Player_Move_Event(other->get_Id(), pl->get_Id());
+            }
 
             pl->vl.lock();
             pl->viewlist.insert(other->get_Id());
@@ -250,6 +281,10 @@ void process_packet(int client_id, unsigned char* p)
                 continue;
             if (ST_INGAME != other->get_state())
                 continue;
+            //스크립트 추가
+            if (true == is_npc(other->get_Id())) {
+                Activate_Player_Move_Event(other->get_Id(), pl->get_Id());
+            }
             nearlist.insert(other->get_Id());
         }
         nearlist.erase(client_id);  // 내 아이디는 무조건 들어가니 그것을 지워주자
@@ -269,15 +304,17 @@ void process_packet(int client_id, unsigned char* p)
                 pl->vl.unlock();
                 send_put_object(pl->get_Id(), other);
 
-                if (true == is_npc(other)) {   // 원래 없던 npc는 움직이기 시작
-                    timer_event ev;
-                    ev.obj_id = other;
-                    ev.start_time = chrono::system_clock::now() + 1s;
-                    ev.ev = EVENT_NPC_MOVE;
-                    ev.target_id = client_id;
-                    timer_queue.push(ev);
-                    continue;
-                }
+                //if (true == is_npc(other)) {   // 원래 없던 npc는 움직이기 시작
+                //    timer_event ev;
+                //    ev.obj_id = other;
+                //    ev.start_time = chrono::system_clock::now() + 1s;
+                //    ev.ev = EVENT_NPC_MOVE;
+                //    ev.target_id = client_id;
+                //    timer_queue.push(ev);
+                //    continue;
+                //}
+                // 스크립트 추가
+                if (true == is_npc(other)) break;
 
                 // 여기는 플레이어 처리이다.
                 Player* other_player = reinterpret_cast<Player*>(players[other]);
@@ -419,21 +456,107 @@ void worker()
                 sizeof(SOCKADDR_IN) + 16, NULL, &exp_over->_wsa_over);
             break;
         }
-        case OP_NPC_MOVE:
+        case OP_NPC_MOVE: {
+            players[client_id]->lua_lock.lock();
+            lua_State* L = players[client_id]->L;
+            lua_getglobal(L, "event_npc_move");
+            lua_pushnumber(L, exp_over->_target);
+            lua_pcall(L, 1, 1, 0);
+
+            // bool값도 리턴을 해주자 
+            // true면 움직이고 
+            // false면 lua안에서 send_chat_packet으로 bye를 보낸다6
+            bool m = lua_toboolean(L, -1);
+            lua_pop(L, 1);
+            if (m) do_npc_move(client_id);
+            else players[client_id]->set_active(true);
+            players[client_id]->lua_lock.unlock();
             delete exp_over;
-            do_npc_move(client_id);
             break;
         }
+        case OP_PLAYER_MOVE: {
+            players[client_id]->lua_lock.lock();
+            lua_State* L = players[client_id]->L;
+            lua_getglobal(L, "event_player_move");
+            lua_pushnumber(L, exp_over->_target);
+            int error = lua_pcall(L, 1, 0, 0);
+            if (error != 0) {
+                cout << lua_tostring(L, -1) << endl;
+            }
+            players[client_id]->lua_lock.unlock();
+            delete exp_over;
+            break;
+        }
+        }
+    
     }
+}
+
+// 스크립트 API
+int API_SendMessage(lua_State* L)
+{
+    int my_id = (int)lua_tointeger(L, -3);
+    int user_id = (int)lua_tointeger(L, -2);
+    char* mess = (char*)lua_tostring(L, -1);
+    lua_pop(L, 4);
+
+    send_chat_packet(user_id, my_id, mess);
+    if (0 == strcmp(mess, "HELLO")) {
+        if (players[my_id]->get_active()) return 0;
+        timer_event ev;
+        ev.obj_id = my_id;
+        ev.start_time = chrono::system_clock::now() + 1s;
+        ev.ev = EVENT_NPC_MOVE;
+        ev.target_id = user_id;
+        timer_queue.push(ev);
+        players[my_id]->set_active(true);
+    }
+    return 0;
+}
+
+int API_get_x(lua_State* L)
+{
+    int user_id = (int)lua_tointeger(L, -1);
+    lua_pop(L, 2);
+    int x = players[user_id]->get_x();
+    lua_pushnumber(L, x);
+    return 1;
+}
+
+int API_get_y(lua_State* L)
+{
+    int user_id =
+        (int)lua_tointeger(L, -1);
+    lua_pop(L, 2);
+    int y = players[user_id]->get_y();
+    lua_pushnumber(L, y);
+    return 1;
 }
 
 void initialise_NPC()
 {
+    cout << "NPC 로딩중" << endl;
     char name[MAX_NAME_SIZE];
     for (int i = NPC_ID_START; i <= NPC_ID_END; ++i) {
         sprintf_s(name, "NPC %d", i);
         players[i] = new Npc(i, name);
+
+        lua_State* L = players[i]->L = luaL_newstate();
+        luaL_openlibs(L);
+        int error = luaL_loadfile(L, "monster.lua") ||
+            lua_pcall(L, 0, 0, 0);
+        lua_getglobal(L, "set_uid");
+        lua_pushnumber(L, i);
+        error = lua_pcall(L, 1, 1, 0);
+        if (error != 0)
+            cout << "초기화 오류" << endl;
+        lua_pop(L, 1);// eliminate set_uid from stack after call
+
+        lua_register(L, "API_SendMessage", API_SendMessage);
+        lua_register(L, "API_get_x", API_get_x);
+        lua_register(L, "API_get_y", API_get_y);
     }
+    cout << "NPC로딩 완료" << endl;
 }
 
 void do_npc_move(int npc_id)

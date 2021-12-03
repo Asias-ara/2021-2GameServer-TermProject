@@ -19,7 +19,7 @@ using namespace chrono;
 
 extern HWND		hWnd;
 
-const static int MAX_TEST = 2000;
+const static int MAX_TEST = 8000;
 const static int MAX_CLIENTS = MAX_TEST * 2;
 const static int INVALID_ID = -1;
 const static int MAX_PACKET_SIZE = 255;
@@ -27,11 +27,11 @@ const static int MAX_BUFF_SIZE = 255;
 
 #pragma comment (lib, "ws2_32.lib")
 
-#include "..\..\iocp_single\iocp_single\protocol.h"
+#include "..\..\Server\Server\2021_°¡À»_protocol.h"
 
 HANDLE g_hiocp;
 
-enum OPTYPE { OP_SEND, OP_RECV, OP_DO_MOVE };
+//enum OPTYPE { OP_SEND, OP_RECV, OP_DO_MOVE };
 
 high_resolution_clock::time_point last_connect_time;
 
@@ -39,7 +39,7 @@ struct OverlappedEx {
 	WSAOVERLAPPED over;
 	WSABUF wsabuf;
 	unsigned char IOCP_buf[MAX_BUFF_SIZE];
-	OPTYPE event_type;
+	COMP_OP event_type;
 	int event_target;
 };
 
@@ -239,7 +239,7 @@ void Worker_Thread()
 			}
 			delete over;
 		}
-		else if (OP_DO_MOVE == over->event_type) {
+		else if (OP_NPC_MOVE == over->event_type) {
 			// Not Implemented Yet
 			delete over;
 		}
