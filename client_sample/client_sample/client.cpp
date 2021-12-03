@@ -20,7 +20,7 @@ using namespace std;
 #pragma comment (lib, "winmm.lib")
 #pragma comment (lib, "ws2_32.lib")
 
-#include "..\..\iocp_single\iocp_single\protocol.h"
+#include "..\..\Server\Server\2021_°¡À»_protocol.h"
 
 sf::TcpSocket socket;
 

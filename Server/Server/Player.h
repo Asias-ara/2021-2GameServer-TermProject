@@ -1,7 +1,6 @@
 #pragma once
 #include "EXP_OVER.h"
 #include "Npc.h"
-#include "stdafx.h"
 class Player : public Npc
 {
 public:
@@ -13,7 +12,7 @@ public:
 	unordered_set <int>	viewlist;
 
 public:
-    Player() 
+    Player(int id) : Npc(id)
     {
         _state = ST_FREE;
         _prev_size = 0;
@@ -34,8 +33,17 @@ public:
         int ret = WSARecv(_socket, &_recv_over._wsa_buf, 1, 0, &recv_flag, &_recv_over._wsa_over, NULL);
         if (SOCKET_ERROR == ret) {
             int error_num = WSAGetLastError();
-            if (ERROR_IO_PENDING != error_num)
-                error_display(error_num);
+            if (ERROR_IO_PENDING != error_num) {
+                WCHAR* lpMsgBuf;
+                FormatMessage(
+                    FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+                    NULL, error_num,
+                    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                    (LPTSTR)&lpMsgBuf, 0, 0);
+                wcout << lpMsgBuf << endl;
+                //while (true);
+                LocalFree(lpMsgBuf);
+            }
         }
     }
 

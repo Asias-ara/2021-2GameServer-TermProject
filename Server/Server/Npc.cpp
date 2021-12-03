@@ -39,6 +39,26 @@ void Npc::set_y(int y)
 	_y = y;
 }
 
+void Npc::set_state(STATE s)
+{
+	_state = s;
+}
+
+void Npc::set_name(char* name)
+{
+	strncpy_s(_name, name, sizeof(_name));
+}
+
+void Npc::set_id(int id)
+{
+	_id = id;
+}
+
+void Npc::set_tribe(TRIBE tribe)
+{
+	_tribe = tribe;
+}
+
 int Npc::get_x()
 {
 	return _x;
@@ -52,6 +72,11 @@ int Npc::get_y()
 int Npc::get_Id()
 {
 	return _id;
+}
+
+char* Npc::get_name()
+{
+	return _name;
 }
 
 STATE Npc::get_state()

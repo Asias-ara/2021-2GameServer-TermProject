@@ -145,6 +145,7 @@
     <ClCompile Include="server.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="2021_가을_protocol.h" />
     <ClInclude Include="EXP_OVER.h" />
     <ClInclude Include="include\lauxlib.h" />
     <ClInclude Include="include\lua.h" />
@@ -153,7 +154,6 @@
     <ClInclude Include="include\lualib.h" />
     <ClInclude Include="Npc.h" />
     <ClInclude Include="Player.h" />
-    <ClInclude Include="protocol.h" />
     <ClInclude Include="stdafx.h" />
   </ItemGroup>
   <ItemGroup>

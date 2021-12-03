@@ -15,9 +15,22 @@
 HANDLE g_h_iocp;
 SOCKET g_s_socket;
 array <Npc*, MAX_USER + MAX_NPC> players;
-concurrency::concurrent_priority_queue<timer_event> timer_queue;
 
 void do_npc_move(int npc_id);
+
+struct timer_event {
+    int obj_id;
+    chrono::system_clock::time_point start_time;
+    EVENT_TYPE ev;
+    int target_id;
+
+    constexpr bool operator < (const timer_event& _left) const
+    {
+        return (start_time > _left.start_time);
+    }
+
+};
+concurrency::concurrent_priority_queue<timer_event> timer_queue;
 
 void error_display(int err_no)
 {
@@ -32,19 +45,6 @@ void error_display(int err_no)
     LocalFree(lpMsgBuf);
 }
 
-struct timer_event {
-    int obj_id;
-    chrono::system_clock::time_point start_time;
-    EVENT_TYPE ev;
-    int target_id;
-
-    constexpr bool operator < (const timer_event& _left) const
-    {
-        return (start_time > _left.start_time);
-    }
-
-};
-
 bool is_near(int a, int b)
 {
     if (RANGE < abs(players[a]->get_x() - players[b]->get_x())) return false;
@@ -57,13 +57,13 @@ int get_new_id()
     static int g_id = 0;
 
     for (int i = 0; i < MAX_USER; ++i) {
-        clients[i].state_lock.lock();
-        if (ST_FREE == clients[i]._state) {
-            clients[i]._state = ST_ACCEPT;
-            clients[i].state_lock.unlock();
+        players[i]->state_lock.lock();
+        if (ST_FREE == players[i]->get_state()) {
+            players[i]->set_state(ST_ACCEPT);
+            players[i]->state_lock.unlock();
             return i;
         }
-        clients[i].state_lock.unlock();
+        players[i]->state_lock.unlock();
     }
     cout << "Maximum Number of Clients Overflow!!\n";
     return -1;
@@ -75,9 +75,9 @@ void send_login_ok_packet(int c_id)
     packet.id = c_id;
     packet.size = sizeof(packet);
     packet.type = SC_PACKET_LOGIN_OK;
-    packet.x = clients[c_id].x;
-    packet.y = clients[c_id].y;
-    clients[c_id].do_send(sizeof(packet), &packet);
+    packet.x = players[c_id]->get_x();
+    packet.y = players[c_id]->get_y();
+    reinterpret_cast<Player*>(players[c_id])->do_send(sizeof(packet), &packet);
 }
 
 void send_move_packet(int c_id, int mover)
@@ -86,10 +86,11 @@ void send_move_packet(int c_id, int mover)
     packet.id = mover;
     packet.size = sizeof(packet);
     packet.type = SC_PACKET_MOVE;
-    packet.x = clients[mover].x;
-    packet.y = clients[mover].y;
-    packet.move_time = clients[mover].last_move_time;
-    clients[c_id].do_send(sizeof(packet), &packet);
+    packet.x = players[mover]->get_x();
+    packet.y = players[mover]->get_y();
+    //packet.move_time =  clients[mover].last_move_time;
+    packet.move_time = 0;
+    reinterpret_cast<Player*>(players[c_id])->do_send(sizeof(packet), &packet);
 }
 
 void send_remove_object(int c_id, int victim)
@@ -98,7 +99,7 @@ void send_remove_object(int c_id, int victim)
     packet.id = victim;
     packet.size = sizeof(packet);
     packet.type = SC_PACKET_REMOVE_OBJECT;
-    clients[c_id].do_send(sizeof(packet), &packet);
+    reinterpret_cast<Player*>(players[c_id])->do_send(sizeof(packet), &packet);
 }
 
 void send_put_object(int c_id, int target)
@@ -107,11 +108,11 @@ void send_put_object(int c_id, int target)
     packet.id = target;
     packet.size = sizeof(packet);
     packet.type = SC_PACKET_PUT_OBJECT;
-    packet.x = clients[target].x;
-    packet.y = clients[target].y;
-    strcpy_s(packet.name, clients[target].name);
+    packet.x = players[target]->get_x();
+    packet.y = players[target]->get_y();
+    strcpy_s(packet.name, players[target]->get_name());
     packet.object_type = 0;
-    clients[c_id].do_send(sizeof(packet), &packet);
+    reinterpret_cast<Player*>(players[c_id])->do_send(sizeof(packet), &packet);
 }
 
 bool is_npc(int id)
@@ -121,61 +122,58 @@ bool is_npc(int id)
 
 void Disconnect(int c_id)
 {
-    Player& pl = reinterpret_cast<Player&>(players[c_id]);
-    pl.vl.lock();
-    unordered_set <int> my_vl = pl.viewlist;
-    pl.vl.unlock();
+    Player* pl = reinterpret_cast<Player*>(players[c_id]);
+    pl->vl.lock();
+    unordered_set <int> my_vl = pl->viewlist;
+    pl->vl.unlock();
     for (auto& other : my_vl) {
-        Player& target = reinterpret_cast<Player&>(players[other]);
-        if (true == is_npc(target._id)) break;   // npc일 경우 보내지 않는다
-        if (ST_INGAME != target._state)
+        Player* target = reinterpret_cast<Player*>(players[other]);
+        if (true == is_npc(target->get_Id())) break;   // npc일 경우 보내지 않는다
+        if (ST_INGAME != target->get_state())
             continue;
-        target.vl.lock();
-        if (0 != target.viewlist.count(c_id)) {
-            target.viewlist.erase(c_id);
-            target.vl.unlock();
+        target->vl.lock();
+        if (0 != target->viewlist.count(c_id)) {
+            target->viewlist.erase(c_id);
+            target->vl.unlock();
             send_remove_object(other, c_id);
         }
-        else target.vl.unlock();
+        else target->vl.unlock();
     }
-    players[c_id].state_lock.lock();
+    players[c_id]->state_lock.lock();
     closesocket(reinterpret_cast<Player*>(players[c_id])->_socket);
-    clients[c_id]._state = ST_FREE;
-    clients[c_id].state_lock.unlock();
+    players[c_id]->set_state(ST_FREE);
+    players[c_id]->state_lock.unlock();
 }
 
 void process_packet(int client_id, unsigned char* p)
 {
     unsigned char packet_type = p[1];
-    CLIENT& cl = clients[client_id];
-
+    Player* pl = reinterpret_cast<Player*>(players[client_id]);
     switch (packet_type) {
     case CS_PACKET_LOGIN: {
         cs_packet_login* packet = reinterpret_cast<cs_packet_login*>(p);
-        strcpy_s(cl.name, packet->name);
+        pl->set_name(packet->name);
         send_login_ok_packet(client_id);
-
-        CLIENT& cl = clients[client_id];
-        cl.state_lock.lock();
-        cl._state = ST_INGAME;
-        cl.state_lock.unlock();
+        pl->state_lock.lock();
+        pl->set_state(ST_INGAME);
+        pl->state_lock.unlock();
 
         // 새로 접속한 정보를 다른이에게 보내줌
-        for (auto& other : clients) {
-            if (other._id == client_id) continue;   // 나다
-            other.state_lock.lock();
-            if (ST_INGAME != other._state) {
-                other.state_lock.unlock();
+        for (auto& other : players) {
+            if (other->get_Id() == client_id) continue;   // 나다
+            other->state_lock.lock();
+            if (ST_INGAME != other->get_state()) {
+                other->state_lock.unlock();
                 continue;
             }
-            other.state_lock.unlock();
+            other->state_lock.unlock();
 
-            if (false == is_near(other._id, client_id)) continue;
+            if (false == is_near(other->get_Id(), client_id)) continue;
 
-            if (true == is_npc(other._id)) {   // 근처에 있는 npc
+            if (true == is_npc(other->get_Id())) {   // 근처에 있는 npc
                // timer 큐에 넣어주자
                 timer_event ev;
-                ev.obj_id = other._id;
+                ev.obj_id = other->get_Id();
                 ev.start_time = chrono::system_clock::now() + 1s;
                 ev.ev = EVENT_NPC_MOVE;
                 ev.target_id = client_id;
@@ -183,54 +181,56 @@ void process_packet(int client_id, unsigned char* p)
                 continue;
             }
 
-            other.vl.lock();
-            other.viewlist.insert(client_id);
-            other.vl.unlock();
+            // 여기는 플레이어 처리
+            Player* other_player = reinterpret_cast<Player*>(other);
+            other_player->vl.lock();
+            other_player->viewlist.insert(client_id);
+            other_player->vl.unlock();
             sc_packet_put_object packet;
             packet.id = client_id;
-            strcpy_s(packet.name, cl.name);
+            strcpy_s(packet.name, pl->get_name());
             packet.object_type = 0;
             packet.size = sizeof(packet);
             packet.type = SC_PACKET_PUT_OBJECT;
-            packet.x = cl.x;
-            packet.y = cl.y;
-            other.do_send(sizeof(packet), &packet);
+            packet.x = pl->get_x();
+            packet.y = pl->get_y();
+            other_player->do_send(sizeof(packet), &packet);
         }
 
         // 새로 접속한 플레이어에게 기존 정보를 보내중
-        for (auto& other : clients) {
-            if (other._id == client_id) continue;
-            other.state_lock.lock();
-            if (ST_INGAME != other._state) {
-                other.state_lock.unlock();
+        for (auto& other : players) {
+            if (other->get_Id() == client_id) continue;
+            other->state_lock.lock();
+            if (ST_INGAME != other->get_state()) {
+                other->state_lock.unlock();
                 continue;
             }
-            other.state_lock.unlock();
+            other->state_lock.unlock();
 
-            if (false == is_near(other._id, client_id))
+            if (false == is_near(other->get_Id(), client_id))
                 continue;
 
-            clients[client_id].vl.lock();
-            clients[client_id].viewlist.insert(other._id);
-            clients[client_id].vl.unlock();
+            pl->vl.lock();
+            pl->viewlist.insert(other->get_Id());
+            pl->vl.unlock();
 
             sc_packet_put_object packet;
-            packet.id = other._id;
-            strcpy_s(packet.name, other.name);
+            packet.id = other->get_Id();
+            strcpy_s(packet.name, other->get_name());
             packet.object_type = 0;
             packet.size = sizeof(packet);
             packet.type = SC_PACKET_PUT_OBJECT;
-            packet.x = other.x;
-            packet.y = other.y;
-            cl.do_send(sizeof(packet), &packet);
+            packet.x = other->get_x();
+            packet.y = other->get_y();
+            pl->do_send(sizeof(packet), &packet);
         }
         break;
     }
     case CS_PACKET_MOVE: {
         cs_packet_move* packet = reinterpret_cast<cs_packet_move*>(p);
-        cl.last_move_time = packet->move_time;
-        int x = cl.x;
-        int y = cl.y;
+        // pl.last_move_time = packet->move_time;
+        int x = pl->get_x();
+        int y = pl->get_y();
         switch (packet->direction) {
         case 0: if (y > 0) y--; break;
         case 1: if (y < (WORLD_HEIGHT - 1)) y++; break;
@@ -240,34 +240,34 @@ void process_packet(int client_id, unsigned char* p)
             cout << "Invalid move in client " << client_id << endl;
             exit(-1);
         }
-        cl.x = x;
-        cl.y = y;
+        pl->set_x(x);
+        pl->set_y(y);
 
         unordered_set <int> nearlist;
-        for (auto& other : clients) {
+        for (auto& other : players) {
             // if (other._id == client_id) continue;
-            if (false == is_near(client_id, other._id))
+            if (false == is_near(client_id, other->get_Id()))
                 continue;
-            if (ST_INGAME != other._state)
+            if (ST_INGAME != other->get_state())
                 continue;
-            nearlist.insert(other._id);
+            nearlist.insert(other->get_Id());
         }
         nearlist.erase(client_id);  // 내 아이디는 무조건 들어가니 그것을 지워주자
 
 
-        send_move_packet(cl._id, cl._id);
+        send_move_packet(pl->get_Id(), pl->get_Id()); // 내 자신의 움직임을 먼저 보내주자
 
-        cl.vl.lock();
-        unordered_set <int> my_vl{ cl.viewlist };
-        cl.vl.unlock();
+        pl->vl.lock();
+        unordered_set <int> my_vl{ pl->viewlist };
+        pl->vl.unlock();
 
         // 새로시야에 들어온 플레이어 처리
         for (auto other : nearlist) {
             if (0 == my_vl.count(other)) {   // 원래 없던 플레이어/npc
-                cl.vl.lock();
-                cl.viewlist.insert(other);
-                cl.vl.unlock();
-                send_put_object(cl._id, other);
+                pl->vl.lock();
+                pl->viewlist.insert(other);
+                pl->vl.unlock();
+                send_put_object(pl->get_Id(), other);
 
                 if (true == is_npc(other)) {   // 원래 없던 npc는 움직이기 시작
                     timer_event ev;
@@ -279,50 +279,54 @@ void process_packet(int client_id, unsigned char* p)
                     continue;
                 }
 
-                clients[other].vl.lock();
-                if (0 == clients[other].viewlist.count(cl._id)) {
-                    clients[other].viewlist.insert(cl._id);
-                    clients[other].vl.unlock();
-                    send_put_object(other, cl._id);
+                // 여기는 플레이어 처리이다.
+                Player* other_player = reinterpret_cast<Player*>(players[other]);
+                other_player->vl.lock();
+                if (0 == other_player->viewlist.count(pl->get_Id())) {
+                    other_player->viewlist.insert(pl->get_Id());
+                    other_player->vl.unlock();
+                    send_put_object(other, pl->get_Id());
                 }
                 else {
-                    clients[other].vl.unlock();
-                    send_move_packet(other, cl._id);
+                    other_player->vl.unlock();
+                    send_move_packet(other, pl->get_Id());
                 }
             }
             // 계속 시야에 존재하는 플레이어 처리
             else {
                 if (true == is_npc(other)) continue;   // 원래 있던 npc는 npc_move에서 처리
 
-                clients[other].vl.lock();
-                if (0 != clients[other].viewlist.count(cl._id)) {
-                    clients[other].vl.unlock();
-                    send_move_packet(other, cl._id);
+                Player* other_player = reinterpret_cast<Player*>(players[other]);
+                other_player->vl.lock();
+                if (0 == other_player->viewlist.count(pl->get_Id())) {
+                    other_player->viewlist.insert(pl->get_Id());
+                    other_player->vl.unlock();
+                    send_put_object(other, pl->get_Id());
                 }
                 else {
-                    clients[other].viewlist.insert(cl._id);
-                    clients[other].vl.unlock();
-                    send_put_object(other, cl._id);
+                    other_player->vl.unlock();
+                    send_move_packet(other, pl->get_Id());
                 }
             }
         }
         // 시야에서 사라진 플레이어 처리
         for (auto other : my_vl) {
             if (0 == nearlist.count(other)) {
-                cl.vl.lock();
-                cl.viewlist.erase(other);
-                cl.vl.unlock();
-                send_remove_object(cl._id, other);
+                pl->vl.lock();
+                pl->viewlist.erase(other);
+                pl->vl.unlock();
+                send_remove_object(pl->get_Id(), other);
 
                 // if (true == is_npc(other)) continue;
                 if (true == is_npc(other)) break;
-                clients[other].vl.lock();
-                if (0 != clients[other].viewlist.count(cl._id)) {
-                    clients[other].viewlist.erase(cl._id);
-                    clients[other].vl.unlock();
-                    send_remove_object(other, cl._id);
+                Player* other_player = reinterpret_cast<Player*>(players[other]);
+                other_player->vl.lock();
+                if (0 != other_player->viewlist.count(pl->get_Id())) {
+                    other_player->viewlist.erase(pl->get_Id());
+                    other_player->vl.unlock();
+                    send_remove_object(other, pl->get_Id());
                 }
-                else clients[other].vl.unlock();
+                else other_player->vl.unlock();
             }
         }
     }
@@ -356,8 +360,8 @@ void worker()
                 Disconnect(client_id);
                 continue;
             }
-            CLIENT& cl = clients[client_id];
-            int remain_data = num_byte + cl._prev_size;
+            Player* pl = reinterpret_cast<Player*>(players[client_id]);
+            int remain_data = num_byte + pl->_prev_size;
             unsigned char* packet_start = exp_over->_net_buf;
             int packet_size = packet_start[0];
 
@@ -370,10 +374,10 @@ void worker()
             }
 
             if (0 < remain_data) {
-                cl._prev_size = remain_data;
+                pl->_prev_size = remain_data;
                 memcpy(&exp_over->_net_buf, packet_start, remain_data);
             }
-            cl.do_recv();
+            pl->do_recv();
             break;
         }
         case OP_SEND: {
@@ -391,20 +395,21 @@ void worker()
                 cout << "Maxmum user overflow. Accept aborted.\n";
             }
             else {
-                CLIENT& cl = clients[new_id];
-                cl.x = rand() % WORLD_WIDTH;
-                cl.y = rand() % WORLD_HEIGHT;
-                cl._id = new_id;
-                cl._prev_size = 0;
-                cl._recv_over._comp_op = OP_RECV;
-                cl._recv_over._wsa_buf.buf = reinterpret_cast<char*>(cl._recv_over._net_buf);
-                cl._recv_over._wsa_buf.len = sizeof(cl._recv_over._net_buf);
-                cl._type = 1;
-                ZeroMemory(&cl._recv_over._wsa_over, sizeof(cl._recv_over._wsa_over));
-                cl._socket = c_socket;
+                //players[new_id] = new Player(new_id);
+                Player* pl = reinterpret_cast<Player*>(players[new_id]);
+                pl->set_x(rand() % WORLD_WIDTH);
+                pl->set_y(rand() % WORLD_HEIGHT);
+                pl->set_id(new_id);
+                pl->_prev_size = 0;
+                pl->_recv_over._comp_op = OP_RECV;
+                pl->_recv_over._wsa_buf.buf = reinterpret_cast<char*>(pl->_recv_over._net_buf);
+                pl->_recv_over._wsa_buf.len = sizeof(pl->_recv_over._net_buf);
+                pl->set_tribe(HUMAN);
+                ZeroMemory(&pl->_recv_over._wsa_over, sizeof(pl->_recv_over._wsa_over));
+                pl->_socket = c_socket;
 
                 CreateIoCompletionPort(reinterpret_cast<HANDLE>(c_socket), g_h_iocp, new_id, 0);
-                cl.do_recv();
+                pl->do_recv();
             }
 
             ZeroMemory(&exp_over->_wsa_over, sizeof(exp_over->_wsa_over));
@@ -435,19 +440,22 @@ void do_npc_move(int npc_id)
 {
     unordered_set<int> old_viewlist;
     unordered_set<int> new_viewlist;
-    for (auto& obj : clients) {
-        if (obj._state != ST_INGAME) continue;
+    for (auto& obj : players) {
+        if (obj->get_state() != ST_INGAME) continue;
         // if (true == is_npc(obj._id)) continue;   // npc가 아닐때
-        if (true == is_npc(obj._id)) break;   // npc가 아닐때
-        if (true == is_near(npc_id, obj._id)) {      // 근처에 있을때
-            old_viewlist.insert(obj._id);         // npc근처에 플레이어가 있으면 old_viewlist에 플레이어 id를 넣는다
+        if (true == is_npc(obj->get_Id())) break;   // npc가 아닐때
+        if (true == is_near(npc_id, obj->get_Id())) {      // 근처에 있을때
+            old_viewlist.insert(obj->get_Id());         // npc근처에 플레이어가 있으면 old_viewlist에 플레이어 id를 넣는다
         }
     }
 
     if (old_viewlist.size() == 0) return;
 
-    auto& x = clients[npc_id].x;
-    auto& y = clients[npc_id].y;
+
+    int x = players[npc_id]->get_x();
+    int y = players[npc_id]->get_y();
+    //auto& x = players[npc_id]->get_x();
+    //auto& y = clients[npc_id].y;
     switch (rand() % 4)
     {
     case 0: if (y > 0) y--; break;
@@ -457,13 +465,16 @@ void do_npc_move(int npc_id)
     default:
         break;
     }
+    players[npc_id]->set_x(x);
+    players[npc_id]->set_y(y);
 
-    for (auto& obj : clients) {
-        if (obj._state != ST_INGAME) continue;   // in game이 아닐때
+
+    for (auto& obj : players) {
+        if (obj->get_state() != ST_INGAME) continue;   // in game이 아닐때
         //if (true == is_npc(obj._id)) continue;   // npc가 아닐때 -> ingame중인 플레이어 찾기
-        if (true == is_npc(obj._id)) break;   // npc가 아닐때 -> ingame중인 플레이어 찾기
-        if (true == is_near(npc_id, obj._id)) {
-            new_viewlist.insert(obj._id);
+        if (true == is_npc(obj->get_Id())) break;   // npc가 아닐때 -> ingame중인 플레이어 찾기
+        if (true == is_near(npc_id, obj->get_Id())) {
+            new_viewlist.insert(obj->get_Id());
         }
     }
 
@@ -471,9 +482,9 @@ void do_npc_move(int npc_id)
     for (auto pl : new_viewlist) {
         // 새로 시야에 들어온 플레이어
         if (0 == old_viewlist.count(pl)) {
-            clients[pl].vl.lock();
-            clients[pl].viewlist.insert(npc_id);
-            clients[pl].vl.unlock();
+            reinterpret_cast<Player*>(players[pl])->vl.lock();
+            reinterpret_cast<Player*>(players[pl])->viewlist.insert(npc_id);
+            reinterpret_cast<Player*>(players[pl])->vl.unlock();
             send_put_object(pl, npc_id);
         }
         else {
@@ -485,9 +496,9 @@ void do_npc_move(int npc_id)
     // 시야에 사라진 경우
     for (auto pl : old_viewlist) {
         if (0 == new_viewlist.count(pl)) {
-            clients[pl].vl.lock();
-            clients[pl].viewlist.erase(npc_id);
-            clients[pl].vl.unlock();
+            reinterpret_cast<Player*>(players[pl])->vl.lock();
+            reinterpret_cast<Player*>(players[pl])->viewlist.erase(npc_id);
+            reinterpret_cast<Player*>(players[pl])->vl.unlock();
             send_remove_object(pl, npc_id);
         }
     }
@@ -544,12 +555,6 @@ void do_timer()
     }
 }
 
-
-
-
-
-
-
 int main()
 {
     wcout.imbue(locale("korean"));
@@ -580,7 +585,7 @@ int main()
 
     // 초기화 실행
     for (int i = 0; i < MAX_USER; ++i) {
-        players[i] = new Player;
+        players[i] = new Player(i);
     }
     initialise_NPC();
 
