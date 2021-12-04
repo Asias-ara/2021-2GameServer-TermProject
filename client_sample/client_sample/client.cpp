@@ -25,13 +25,14 @@ using namespace std;
 sf::TcpSocket socket;
 
 constexpr auto BUF_SIZE = 256;
-constexpr auto SCREEN_WIDTH = 16;
-constexpr auto SCREEN_HEIGHT = 16;
+constexpr auto SCREEN_WIDTH = 15;
+constexpr auto SCREEN_HEIGHT = 15;
 
 constexpr auto TILE_WIDTH = 65;
 constexpr auto WINDOW_WIDTH = TILE_WIDTH * SCREEN_WIDTH + 10;   // size of window
 constexpr auto WINDOW_HEIGHT = TILE_WIDTH * SCREEN_WIDTH + 10;
 //constexpr auto BUF_SIZE = MAX_BUFFER;
+const int MAX_HP_BAR = 400;
 
 int g_myid;
 int g_x_origin;
@@ -39,6 +40,7 @@ int g_y_origin;
 
 sf::RenderWindow* g_window;
 sf::Font g_font;
+
 
 class OBJECT {
 private:
@@ -49,6 +51,9 @@ private:
 	chrono::system_clock::time_point m_mess_end_time;
 public:
 	int m_x, m_y;
+	short m_lv;
+	int m_hp, m_maxhp;
+	TRIBE tribe;
 
 	OBJECT(sf::Texture& t, int x, int y, int x2, int y2) {
 		m_showing = false;
@@ -110,6 +115,7 @@ public:
 		m_mess_end_time = chrono::system_clock::now() + chrono::seconds(3);
 	}
 };
+int my_exp;
 
 OBJECT avatar;
 OBJECT players[MAX_USER + MAX_NPC];
@@ -133,8 +139,12 @@ void client_initialize()
 	white_tile = OBJECT{ *board, 5, 5, TILE_WIDTH, TILE_WIDTH };
 	black_tile = OBJECT{ *board, 69, 5, TILE_WIDTH, TILE_WIDTH };
 	avatar = OBJECT{ *pieces, 128, 0, 64, 64 };
-	for (auto& pl : players) {
-		pl = OBJECT{ *pieces, 0, 0, 64, 64 };
+	
+	for (int i = 0; i < MAX_USER; ++i) {
+		players[i] = OBJECT{ *pieces, 0, 0, 64, 64 };
+	}
+	for (int i = NPC_ID_START; i <= NPC_ID_END; ++i) {
+		players[i] = OBJECT{ *pieces, 256, 0, 64, 64 };
 	}
 }
 
@@ -153,11 +163,18 @@ void ProcessPacket(char* ptr)
 	{
 		sc_packet_login_ok* packet = reinterpret_cast<sc_packet_login_ok*>(ptr);
 		g_myid = packet->id;
+		avatar.set_name(packet->name);
 		avatar.m_x = packet->x;
 		avatar.m_y = packet->y;
+		cout << packet->name << endl;
 		g_x_origin = packet->x - SCREEN_WIDTH / 2;
 		g_y_origin = packet->y - SCREEN_WIDTH / 2;
 		avatar.move(packet->x, packet->y);
+		avatar.tribe = static_cast<TRIBE>(packet->tribe);
+		avatar.m_hp = packet->hp;
+		avatar.m_maxhp = packet->maxhp;
+		my_exp = packet->exp;
+		avatar.m_lv = packet->level;
 		avatar.show();
 	}
 	break;
@@ -216,7 +233,7 @@ void ProcessPacket(char* ptr)
 	{
 		sc_packet_chat* my_packet = reinterpret_cast<sc_packet_chat*>(ptr);
 		int other_id = my_packet->id;
-		if (other_id == g_myid) {
+		/*if (other_id == g_myid) {
 			avatar.set_chat(my_packet->message);
 		}
 		else if (other_id < MAX_USER) {
@@ -224,7 +241,21 @@ void ProcessPacket(char* ptr)
 		}
 		else {
 			players[other_id].set_chat(my_packet->message);
-		}
+		}*/
+		cout << my_packet->message << endl;
+		break;
+	}
+	case SC_PACKET_LOGIN_FAIL:
+	{
+		cout << "로그인 실패" << endl;
+		g_window->close();
+	}
+	case SC_PACKET_STATUS_CHANGE: {
+		sc_packet_status_change* packet = reinterpret_cast<sc_packet_status_change*>(ptr);
+		avatar.m_hp = packet->hp;
+		avatar.m_maxhp = packet->maxhp;
+		avatar.m_lv = packet->level;
+		my_exp = packet->exp;
 		break;
 	}
 	default:
@@ -297,9 +328,23 @@ bool client_main()
 	sf::Text text;
 	text.setFont(g_font);
 	char buf[100];
-	sprintf_s(buf, "(%d, %d)", avatar.m_x, avatar.m_y);
+	sprintf_s(buf, "LV : %d,  POS(%d, %d)", avatar.m_lv, avatar.m_x, avatar.m_y);
 	text.setString(buf);
+	
+	// hp바
+	float hp_bar_per = MAX_HP_BAR * ((float)avatar.m_hp / (float)avatar.m_maxhp);
+	sf::RectangleShape hp_bar(sf::Vector2f(hp_bar_per, 40));
+	sf::RectangleShape max_hp_bar(sf::Vector2f(400, 40));
+	hp_bar.setFillColor(sf::Color(255, 0, 0, 200));
+	max_hp_bar.setFillColor(sf::Color(5, 5, 5, 230));
+	hp_bar.setPosition(0.0f, 40);
+	max_hp_bar.setPosition(0.0f, 40);
+	
+	// draw()
+	g_window->draw(max_hp_bar);
+	g_window->draw(hp_bar);
 	g_window->draw(text);
+	
 	return true;
 }
 
@@ -323,6 +368,15 @@ void send_login_packet(string &name)
 	socket.send(&packet, sizeof(packet), sent);
 }
 
+void send_attack_packet()
+{
+	cs_packet_attack packet;
+	packet.size = sizeof(packet);
+	packet.type = CS_PACKET_ATTACK;
+	size_t sent = 0;
+	socket.send(&packet, sizeof(packet), sent);
+}
+
 int main()
 {
 	wcout.imbue(locale("korean"));
@@ -336,12 +390,12 @@ int main()
 		while (true);
 	}
 
-	client_initialize();
-	string name{ "PL" };
-	auto tt = chrono::duration_cast<chrono::milliseconds>
-		(chrono::system_clock::now().
-			time_since_epoch()).count();
-	name += to_string(tt % 1000);
+	client_initialize();		// 렌더링 객체 초기화
+	string name;
+	// auto tt = chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch()).count();
+	// name += to_string(tt % 1000);
+	cout << "ID를 입력하세요 : ";
+	cin >> name;
 	send_login_packet(name);	
 	avatar.set_name(name.c_str());
 	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "2D CLIENT");
@@ -368,6 +422,9 @@ int main()
 					break;
 				case sf::Keyboard::Down:
 					direction = 1;
+					break;
+				case sf::Keyboard::A:
+					send_attack_packet();
 					break;
 				case sf::Keyboard::Escape:
 					window.close();

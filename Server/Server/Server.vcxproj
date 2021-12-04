@@ -51,6 +51,7 @@
     <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
+    <UseOfMfc>false</UseOfMfc>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -139,13 +140,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="database.cpp" />
     <ClCompile Include="EXP_OVER.cpp" />
     <ClCompile Include="Npc.cpp" />
+    <ClCompile Include="Obstacle.cpp" />
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="server.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="2021_가을_protocol.h" />
+    <ClInclude Include="database.h" />
     <ClInclude Include="EXP_OVER.h" />
     <ClInclude Include="include\lauxlib.h" />
     <ClInclude Include="include\lua.h" />
@@ -153,6 +157,7 @@
     <ClInclude Include="include\luaconf.h" />
     <ClInclude Include="include\lualib.h" />
     <ClInclude Include="Npc.h" />
+    <ClInclude Include="Obstacle.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="stdafx.h" />
   </ItemGroup>
@@ -161,6 +166,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="monster.lua" />
+    <None Include="monster2.lua" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

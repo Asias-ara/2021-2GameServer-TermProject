@@ -3,6 +3,9 @@
 #include "Npc.h"
 class Player : public Npc
 {
+private:
+    int                 _login_id;
+    atomic_bool	        _attack_active;		// NPC가 가만히 안있고 움직일때
 public:
 	SOCKET				_socket;
 	EXP_OVER			_recv_over;
@@ -10,7 +13,6 @@ public:
 
 	mutex		        vl;
 	unordered_set <int>	viewlist;
-
 public:
     Player(int id) : Npc(id)
     {
@@ -18,6 +20,8 @@ public:
         _prev_size = 0;
         _x = 0;
         _y = 0;
+        set_tribe(HUMAN);
+        _attack_active = false;
     }
     ~Player()
     {
@@ -66,5 +70,23 @@ public:
             }
         }
     }
-};
 
+    // --------------------------
+    void set_login_id(int login_id)
+    {
+        _login_id = login_id;
+    }
+    
+    int get_login_id() {
+        return _login_id;
+    }
+
+    bool get_attack_active() {
+        return _attack_active;
+    }
+
+    void set_attack_active(bool atk) {
+        _attack_active = atk;
+    }
+
+};
