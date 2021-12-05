@@ -17,8 +17,8 @@ end
 function event_npc_move(player)
    player_x = API_get_x(player);
    player_y = API_get_y(player);
-   x = API_get_x(myid);
-   y = API_get_y(myid);
+   x = API_get_x(my_id);
+   y = API_get_y(my_id);
    if (math.abs(my_x - x) > 10) or (math.abs(my_y - y) > 10) then
       return false;
    else
@@ -28,25 +28,33 @@ function event_npc_move(player)
 end
 
 function return_my_position()
-   x = API_get_x(myid);
-   y = API_get_y(myid);
-   if(my_x ~= x) then
-      if(my_x >= x) then
-         x = x+1;
-         return x, y, true;
-      else
-         x = x-1;
-         return x, y, true;
+   return my_x, my_y, true;
+end
+
+function attack_range(player)
+   player_x = API_get_x(player);
+   player_y = API_get_y(player);
+   x = API_get_x(my_id);
+   y = API_get_y(my_id);
+   if (x == player_x) then
+      if (player_y <= (y+1)) then
+         if((y-1) <= player_y) then
+            return true;
+         else
+            return false;
+         end
+      else 
+         return false;
       end
-   elseif (my_y ~= y) then
-      if(my_y >= y) then
-         y = y+1;
-         return x, y, true;
-      else
-         y = y-1;
-         return x, y, true;
+   elseif (y == player_y) then
+      if (player_x <= (x+1)) then
+         if((x-1) <= player_x) then
+            return true;
+         else
+            return false;
+         end
+      else 
+         return false;
       end
-   else
-      return x, y, false;
    end
 end

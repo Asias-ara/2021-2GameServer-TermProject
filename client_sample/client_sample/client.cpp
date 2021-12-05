@@ -37,6 +37,7 @@ const int MAX_HP_BAR = 400;
 int g_myid;
 int g_x_origin;
 int g_y_origin;
+bool dead_screen = false;
 
 sf::RenderWindow* g_window;
 sf::Font g_font;
@@ -258,6 +259,23 @@ void ProcessPacket(char* ptr)
 		my_exp = packet->exp;
 		break;
 	}
+	case SC_PACKET_DEAD: {
+		dead_screen = true;
+		break;
+	}
+	case SC_PACKET_REVIVE: {
+		dead_screen = false;
+		sc_packet_revive* packet = reinterpret_cast<sc_packet_revive*>(ptr);
+		avatar.m_x = packet->x;
+		avatar.m_y = packet->y;
+		g_x_origin = packet->x - SCREEN_WIDTH / 2;
+		g_y_origin = packet->y - SCREEN_WIDTH / 2;
+		avatar.move(packet->x, packet->y);
+		avatar.m_hp = packet->hp;
+		my_exp = packet->exp;
+		avatar.show();
+		break;
+	}
 	default:
 		printf("Unknown PACKET type [%d]\n", ptr[1]);
 	}
@@ -286,6 +304,82 @@ void process_data(char* net_buf, size_t io_byte)
 			io_byte = 0;
 		}
 	}
+}
+
+bool client_dead()
+{
+	char net_buf[BUF_SIZE];
+	size_t	received;
+
+	auto recv_result = socket.receive(net_buf, BUF_SIZE, received);
+	if (recv_result == sf::Socket::Error)
+	{
+		wcout << L"Recv 에러!";
+		while (true);
+	}
+	if (recv_result == sf::Socket::Disconnected)
+	{
+		wcout << L"서버 접속 종료.\n";
+		return false;
+	}
+	if (recv_result != sf::Socket::NotReady)
+		if (received > 0) process_data(net_buf, received);
+
+	for (int i = 0; i < SCREEN_WIDTH; ++i){
+		for (int j = 0; j < SCREEN_HEIGHT; ++j)
+		{
+			int tile_x = i + g_x_origin;
+			int tile_y = j + g_y_origin;
+			if ((tile_x < 0) || (tile_y < 0)) continue;
+			if ((((tile_x / 3) + (tile_y / 3)) % 2) == 1) {
+				white_tile.a_move(TILE_WIDTH * i + 7, TILE_WIDTH * j + 7);
+				white_tile.a_draw();
+			}
+			else
+			{
+				black_tile.a_move(TILE_WIDTH * i + 7, TILE_WIDTH * j + 7);
+				black_tile.a_draw();
+			}
+		}
+	}
+	sf::Text text;
+	text.setFont(g_font);
+	char buf[100];
+	sprintf_s(buf, "LV : %d,  POS(%d, %d)", avatar.m_lv, avatar.m_x, avatar.m_y);
+	text.setString(buf);
+
+	// 사망화면
+	sf::RectangleShape dead_box(sf::Vector2f(WINDOW_WIDTH, WINDOW_HEIGHT));
+	dead_box.setFillColor(sf::Color(3, 3, 3, 250));
+	dead_box.setPosition(0.0f, 0.0f);
+	sf::Text dead_text;
+	dead_text.setFont(g_font);
+	dead_text.setFillColor(sf::Color(255, 0, 0));
+	dead_text.setStyle(sf::Text::Bold);
+	char d_buf[100];
+	sprintf_s(d_buf, "DEAD");
+	dead_text.setString(d_buf);
+	dead_text.setPosition(WINDOW_WIDTH/2 - 75, WINDOW_HEIGHT/2 - 50);
+	dead_text.setScale(sf::Vector2f(2.0f, 2.0f));
+
+
+	// hp바
+	float hp_bar_per = MAX_HP_BAR * ((float)avatar.m_hp / (float)avatar.m_maxhp);
+	sf::RectangleShape hp_bar(sf::Vector2f(hp_bar_per, 40));
+	sf::RectangleShape max_hp_bar(sf::Vector2f(400, 40));
+	hp_bar.setFillColor(sf::Color(255, 0, 0, 200));
+	max_hp_bar.setFillColor(sf::Color(5, 5, 5, 230));
+	hp_bar.setPosition(0.0f, 40);
+	max_hp_bar.setPosition(0.0f, 40);
+
+	// draw()
+	g_window->draw(max_hp_bar);
+	g_window->draw(hp_bar);
+	g_window->draw(text);
+	g_window->draw(dead_box);
+	g_window->draw(dead_text);
+
+	return true;
 }
 
 bool client_main()
@@ -438,6 +532,14 @@ int main()
 		if (false == client_main())
 			window.close();
 		window.display();
+		
+
+		while (dead_screen) {
+			window.clear();
+			if (false == client_dead())
+				window.close();
+			window.display();
+		}
 	}
 	client_finish();
 

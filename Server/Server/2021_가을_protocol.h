@@ -8,10 +8,11 @@ enum COMP_OP { OP_RECV, OP_SEND, OP_ACCEPT, OP_NPC_MOVE,
 	OP_PLAYER_ATTACK};
 enum EVENT_TYPE { EVENT_NPC_MOVE, EVENT_NPC_ATTACK, EVENT_AUTO_PLAYER_HP,
 	EVENT_PLAYER_REVIVE, EVENT_NPC_REVIVE, EVENT_PLAYER_ATTACK };
-enum TRIBE { HUMAN, MONSTER, BOSS };
+enum TRIBE { HUMAN, MONSTER, AGRO, BOSS, OBSTACLE };
 const int BUFSIZE = 256;
 const int RANGE = 7;
 const int AGRORANGE = 5;
+const int MAX_OBSTACLE = 10000;
 //------------------------------------------------------------
 
 const short SERVER_PORT = 4000;
@@ -43,6 +44,7 @@ const char SC_PACKET_STATUS_CHANGE = 7;
 //---------------------------------------------------
 // 추가사항
 const char SC_PACKET_DEAD = 8;
+const char SC_PACKET_REVIVE = 9;
 //---------------------------------------------------
 #pragma pack (push, 1)
 struct cs_packet_login {
@@ -139,4 +141,12 @@ struct sc_packet_dead {
 	unsigned char size;
 	char type;
 	int attacker_id;
+};
+
+struct sc_packet_revive {
+	unsigned char size;
+	char type;
+	short	x, y;
+	int		hp;
+	int		exp;
 };
