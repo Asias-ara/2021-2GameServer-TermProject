@@ -164,10 +164,6 @@ void attack_success(int p_id, int target)
             ev.ev = EVENT_PLAYER_REVIVE;
             ev.target_id = 0;
             timer_queue.push(ev);
-
-            // 죽인 NPC를 처리해주자
-            players[p_id]->set_active(false);
-            // return_npc_position(p_id);
         }
         else {  // NPC라면 30초 후에 부활할 수 있도록 하자
             players[target]->set_active(false);
@@ -180,6 +176,8 @@ void attack_success(int p_id, int target)
 
             // 플레이어에게 경험치 제공, 그리고 바뀐 경험치와 레벨을 보내주자
             int get_exp = players[target]->get_lv() * players[target]->get_lv() * 2;
+            if (players[target]->get_tribe() == BOSS)
+                get_exp = get_exp * 2;
             char mess[MAX_CHAT_SIZE];
             sprintf_s(mess, MAX_CHAT_SIZE, "%s를 무찔러서 %d의 경험치를 얻었습니다",
                  players[target]->get_name(), get_exp);
@@ -344,7 +342,16 @@ void process_packet(int client_id, unsigned char* p)
             // 스크립트와 함께 추가된 부분
             if (true == is_npc(other->get_Id())) {	// 시야에 npc가 있다면 
                 if (is_agro_near(client_id, other->get_Id())) {
-                    Activate_Npc_Move_Event(other->get_Id(), pl->get_Id());
+                    if (other->get_active() == false) {
+                        other->set_active(true);
+                        timer_event ev;
+                        ev.obj_id = other->get_Id();
+                        ev.start_time = chrono::system_clock::now() + 1s;
+                        ev.ev = EVENT_NPC_ATTACK;
+                        ev.target_id = client_id;
+                        timer_queue.push(ev);
+                        Activate_Npc_Move_Event(other->get_Id(), pl->get_Id());
+                    }
                 }
             }
 
@@ -415,7 +422,16 @@ void process_packet(int client_id, unsigned char* p)
             //스크립트 추가
             if (true == is_npc(other->get_Id())) {
                 if (is_agro_near(client_id, other->get_Id())) {
-                    Activate_Npc_Move_Event(other->get_Id(), pl->get_Id());
+                    if (other->get_active() == false) {
+                        other->set_active(true);
+                        timer_event ev;
+                        ev.obj_id = other->get_Id();
+                        ev.start_time = chrono::system_clock::now() + 1s;
+                        ev.ev = EVENT_NPC_ATTACK;
+                        ev.target_id = client_id;
+                        timer_queue.push(ev);
+                        Activate_Npc_Move_Event(other->get_Id(), pl->get_Id());
+                    }
                 }
             }
             nearlist.insert(other->get_Id());
@@ -562,7 +578,7 @@ void process_packet(int client_id, unsigned char* p)
                     cout << "범위 1" << endl;
                     attack_success(client_id, players[i]->get_Id());    // 데미지 계산
                     // 몬스터의 자동공격을 넣어주자
-                    if (players[i]->get_active() == false) {
+                    if (players[i]->get_active() == false && players[i]->get_tribe() == MONSTER) {
                         players[i]->set_active(true);
                         timer_event ev;
                         ev.obj_id = i;
@@ -580,7 +596,7 @@ void process_packet(int client_id, unsigned char* p)
                     cout << "범위 2" << endl;
                     attack_success(client_id, players[i]->get_Id());    // 데미지 계산
                     // 몬스터의 자동공격을 넣어주자
-                    if (players[i]->get_active() == false) {
+                    if (players[i]->get_active() == false && players[i]->get_tribe() == MONSTER) {
                         players[i]->set_active(true);
                         timer_event ev;
                         ev.obj_id = i;
@@ -607,6 +623,7 @@ void process_packet(int client_id, unsigned char* p)
 
 void player_revive(int client_id)
 {
+    // 플레이어 죽은 후 초기화 설정
     Player* pl = reinterpret_cast<Player*>(players[client_id]);
     pl->state_lock.lock();
     pl->set_state(ST_INGAME);
@@ -670,10 +687,19 @@ void player_revive(int client_id)
         if (false == is_near(other->get_Id(), client_id))
             continue;
 
-        // 스크립트와 함께 추가된 부분
+        // 스크립트와 함께 추가된 부분 
         if (true == is_npc(other->get_Id())) {	// 시야에 npc가 있다면 
             if (is_agro_near(client_id, other->get_Id())) {
-                Activate_Npc_Move_Event(other->get_Id(), pl->get_Id());
+                if (other->get_active() == false) {
+                    other->set_active(true);
+                    timer_event ev;
+                    ev.obj_id = other->get_Id();
+                    ev.start_time = chrono::system_clock::now() + 1s;
+                    ev.ev = EVENT_NPC_ATTACK;
+                    ev.target_id = client_id;
+                    timer_queue.push(ev);
+                    Activate_Npc_Move_Event(other->get_Id(), pl->get_Id());
+                }
             }
         }
 
@@ -806,6 +832,7 @@ void worker()
             players[client_id]->state_lock.lock();
             if ((players[client_id]->get_state() != ST_INGAME)) {
                 players[client_id]->state_lock.unlock();
+                players[client_id]->set_active(false);
                 delete exp_over;
                 break;
             }
@@ -820,6 +847,7 @@ void worker()
             players[target_id]->state_lock.lock();
             if (players[target_id]->get_state() != ST_INGAME) {
                 players[target_id]->state_lock.unlock();
+                players[client_id]->set_active(false);
                 return_npc_position(client_id);
                 delete exp_over;
                 break;
@@ -843,6 +871,7 @@ void worker()
             }
             else {
                 // 원래 자리로 돌아가자
+                players[client_id]->set_active(false);
                 return_npc_position(client_id);
             }
             players[client_id]->lua_lock.unlock();
@@ -850,6 +879,7 @@ void worker()
             break;
         }
         case OP_NPC_ATTACK: {
+            cout << "여긴 되냐??" << endl;
             // 죽은 상태나 공격하는 상태인지 아닌지 확인
             players[client_id]->state_lock.lock();
             if ((players[client_id]->get_state() != ST_INGAME) || (false == players[client_id]->get_active())) {
@@ -1022,7 +1052,11 @@ void initialise_NPC()
             lua_pcall(L, 0, 0, 0);
         lua_getglobal(L, "set_uid");
         lua_pushnumber(L, i);
-        error = lua_pcall(L, 1, 3, 0);
+        lua_pushnumber(L, players[i]->get_x());
+        lua_pushnumber(L, players[i]->get_y());
+        error = lua_pcall(L, 3, 3, 0);
+
+        cout << " 어그로 몬스터 : " << players[i]->get_x() << "," << players[i]->get_y() << endl;
 
         if (error != 0) {
             //cout << "ERROR : " << lua_tostring(L, -1);
@@ -1044,7 +1078,10 @@ void initialise_NPC()
 
 void return_npc_position(int npc_id)
 {
-    players[npc_id]->set_active(false); // 공격을 멈춤
+    if (players[npc_id]->get_active() == true) {
+        return;
+    }
+    // players[npc_id]->set_active(false); // 공격을 멈춤
     cout << "돌아가자" << endl;
     unordered_set<int> old_viewlist;
     unordered_set<int> new_viewlist;
@@ -1151,7 +1188,6 @@ void do_npc_move(int npc_id, int target)
     unordered_set<int> new_viewlist;
     for (auto& obj : players) {
         if (obj->get_state() != ST_INGAME) continue;
-        // if (true == is_npc(obj._id)) continue;   // npc가 아닐때
         if (true == is_npc(obj->get_Id())) break;   // npc가 아닐때
         if (true == is_near(npc_id, obj->get_Id())) {      // 근처에 있을때
             old_viewlist.insert(obj->get_Id());         // npc근처에 플레이어가 있으면 old_viewlist에 플레이어 id를 넣는다
@@ -1159,6 +1195,7 @@ void do_npc_move(int npc_id, int target)
     }
 
     if (old_viewlist.size() == 0) {
+        players[npc_id]->set_active(false);
         return_npc_position(npc_id);
         return;
     }
@@ -1240,9 +1277,11 @@ COMP_OP EVtoOP(EVENT_TYPE ev) {
     case EVENT_NPC_MOVE:
         return OP_NPC_MOVE;
         break;
-    case EVENT_NPC_ATTACK:
+    case EVENT_NPC_ATTACK: {
+        cout << "?????" << endl;
         return OP_NPC_ATTACK;
         break;
+    }
     case EVENT_AUTO_PLAYER_HP:
         return OP_AUTO_PLAYER_HP;
         break;
