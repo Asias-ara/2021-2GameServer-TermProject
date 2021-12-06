@@ -145,6 +145,7 @@
     <ClCompile Include="Npc.cpp" />
     <ClCompile Include="Obstacle.cpp" />
     <ClCompile Include="Player.cpp" />
+    <ClCompile Include="send.cpp" />
     <ClCompile Include="server.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -159,6 +160,7 @@
     <ClInclude Include="Npc.h" />
     <ClInclude Include="Obstacle.h" />
     <ClInclude Include="Player.h" />
+    <ClInclude Include="send.h" />
     <ClInclude Include="stdafx.h" />
   </ItemGroup>
   <ItemGroup>

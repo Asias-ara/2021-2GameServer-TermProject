@@ -111,6 +111,7 @@ struct sc_packet_remove_object {
 	unsigned char size;
 	char type;
 	int id;
+	char object_type;	// 새로 추가해줌
 };
 
 struct sc_packet_chat {

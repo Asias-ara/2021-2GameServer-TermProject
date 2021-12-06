@@ -25,14 +25,15 @@ using namespace std;
 sf::TcpSocket socket;
 
 constexpr auto BUF_SIZE = 256;
-constexpr auto SCREEN_WIDTH = 15;
-constexpr auto SCREEN_HEIGHT = 15;
+constexpr auto SCREEN_WIDTH = 20;
+constexpr auto SCREEN_HEIGHT = 20;
 
-constexpr auto TILE_WIDTH = 65;
+constexpr auto TILE_WIDTH = 45;
 constexpr auto WINDOW_WIDTH = TILE_WIDTH * SCREEN_WIDTH + 10;   // size of window
 constexpr auto WINDOW_HEIGHT = TILE_WIDTH * SCREEN_WIDTH + 10;
 //constexpr auto BUF_SIZE = MAX_BUFFER;
-const int MAX_HP_BAR = 400;
+const int BAR_SIZE_WIDTH = 400;
+const int BAR_SIZE_HEIGHT = 40;
 
 int g_myid;
 int g_x_origin;
@@ -41,6 +42,7 @@ bool dead_screen = false;
 
 sf::RenderWindow* g_window;
 sf::Font g_font;
+
 
 
 class OBJECT {
@@ -89,8 +91,8 @@ public:
 	}
 	void draw() {
 		if (false == m_showing) return;
-		float rx = (m_x - g_x_origin) * 65.0f + 8;
-		float ry = (m_y - g_y_origin) * 65.0f + 8;
+		float rx = (m_x - g_x_origin) * 45.0f + 8;
+		float ry = (m_y - g_y_origin) * 45.0f + 8;
 		m_sprite.setPosition(rx, ry);
 		g_window->draw(m_sprite);
 		if (m_mess_end_time < chrono::system_clock::now()) {
@@ -116,10 +118,59 @@ public:
 		m_mess_end_time = chrono::system_clock::now() + chrono::seconds(3);
 	}
 };
+
+class Obstacle {
+private:
+	sf::Sprite m_sprite;
+	bool m_showing;
+public:
+	int m_x, m_y;
+	TRIBE tribe;
+
+	Obstacle(sf::Texture& t, int x, int y, int x2, int y2) {
+		m_showing = false;
+		m_sprite.setTexture(t);
+		m_sprite.setTextureRect(sf::IntRect(x, y, x2, y2));
+	}
+	Obstacle() {
+		m_showing = false;
+	}
+	void show()
+	{
+		m_showing = true;
+	}
+	void hide()
+	{
+		m_showing = false;
+	}
+
+	void a_move(int x, int y) {
+		m_sprite.setPosition((float)x, (float)y);
+	}
+
+	void a_draw() {
+		g_window->draw(m_sprite);
+	}
+
+	void move(int x, int y) {
+		m_x = x;
+		m_y = y;
+	}
+	void draw() {
+		if (false == m_showing) return;
+		float rx = (m_x - g_x_origin) * 45.0f + 8;
+		float ry = (m_y - g_y_origin) * 45.0f + 8;
+		m_sprite.setPosition(rx, ry);
+		g_window->draw(m_sprite);
+	}
+};
+
 int my_exp;
+int max_exp;
 
 OBJECT avatar;
 OBJECT players[MAX_USER + MAX_NPC];
+Obstacle obstacles[MAX_OBSTACLE];
 
 OBJECT white_tile;
 OBJECT black_tile;
@@ -135,18 +186,24 @@ void client_initialize()
 		cout << "Font Loading Error!\n";
 		while (true);
 	}
-	board->loadFromFile("chessmap.bmp");
+	/*board->loadFromFile("chessmap.bmp");
+	pieces->loadFromFile("chess2.png");*/
+	board->loadFromFile("chessmap2.bmp");
 	pieces->loadFromFile("chess2.png");
-	white_tile = OBJECT{ *board, 5, 5, TILE_WIDTH, TILE_WIDTH };
-	black_tile = OBJECT{ *board, 69, 5, TILE_WIDTH, TILE_WIDTH };
-	avatar = OBJECT{ *pieces, 128, 0, 64, 64 };
+	white_tile = OBJECT{ *board, 4, 4, TILE_WIDTH, TILE_WIDTH };
+	black_tile = OBJECT{ *board, 49, 4, TILE_WIDTH, TILE_WIDTH };
+	avatar = OBJECT{ *pieces, 88, 0, 44, 44 };
 	
 	for (int i = 0; i < MAX_USER; ++i) {
-		players[i] = OBJECT{ *pieces, 0, 0, 64, 64 };
+		players[i] = OBJECT{ *pieces, 0, 0, 44, 44 };
 	}
 	for (int i = NPC_ID_START; i <= NPC_ID_END; ++i) {
-		players[i] = OBJECT{ *pieces, 256, 0, 64, 64 };
+		players[i] = OBJECT{ *pieces, 176, 0, 44, 44 };
 	}
+	for (int i = 0; i <= MAX_OBSTACLE; ++i) {
+		obstacles[i] = Obstacle{ *pieces, 220, 0, 44, 44 };
+	}
+
 }
 
 void client_finish()
@@ -160,8 +217,7 @@ void ProcessPacket(char* ptr)
 	static bool first_time = true;
 	switch (ptr[1])
 	{
-	case SC_PACKET_LOGIN_OK:
-	{
+	case SC_PACKET_LOGIN_OK:{
 		sc_packet_login_ok* packet = reinterpret_cast<sc_packet_login_ok*>(ptr);
 		g_myid = packet->id;
 		avatar.set_name(packet->name);
@@ -176,28 +232,11 @@ void ProcessPacket(char* ptr)
 		avatar.m_maxhp = packet->maxhp;
 		my_exp = packet->exp;
 		avatar.m_lv = packet->level;
+		max_exp = 100 * pow(2, (avatar.m_lv - 1));
 		avatar.show();
-	}
-	break;
-	case SC_PACKET_PUT_OBJECT:
-	{
-		sc_packet_put_object* my_packet = reinterpret_cast<sc_packet_put_object*>(ptr);
-		int id = my_packet->id;
-
-		if (id < MAX_USER) { // PLAYER
-			players[id].set_name(my_packet->name);
-			players[id].move(my_packet->x, my_packet->y);
-			players[id].show();
-		}
-		else {  // NPC
-			players[id].set_name(my_packet->name);
-			players[id].move(my_packet->x, my_packet->y);
-			players[id].show();
-		}
 		break;
 	}
-	case SC_PACKET_MOVE:
-	{
+	case SC_PACKET_MOVE:{
 		sc_packet_move * my_packet = reinterpret_cast<sc_packet_move *>(ptr);
 		int other_id = my_packet->id;
 		if (other_id == g_myid) {
@@ -213,25 +252,50 @@ void ProcessPacket(char* ptr)
 		}
 		break;
 	}
+	case SC_PACKET_PUT_OBJECT:{
+		sc_packet_put_object* my_packet = reinterpret_cast<sc_packet_put_object*>(ptr);
+		int id = my_packet->id;
 
-	case SC_PACKET_REMOVE_OBJECT:
-	{
-		sc_packet_remove_object* my_packet = reinterpret_cast<sc_packet_remove_object*>(ptr);
-		int other_id = my_packet->id;
-		if (other_id == g_myid) {
-			avatar.hide();
-		}
-		else if (other_id < MAX_USER) {
-			players[other_id].hide();
+		if (static_cast<TRIBE>(my_packet->object_type) != OBSTACLE) {
+			if (id < MAX_USER) { // PLAYER
+				players[id].set_name(my_packet->name);
+				players[id].move(my_packet->x, my_packet->y);
+				players[id].show();
+			}
+			else {  // NPC
+				players[id].set_name(my_packet->name);
+				players[id].move(my_packet->x, my_packet->y);
+				players[id].show();
+			}
+			break;
 		}
 		else {
-			players[other_id].hide();
+			obstacles[id].move(my_packet->x, my_packet->y);
+			obstacles[id].show();
+			break;
 		}
 		break;
 	}
-
-	case SC_PACKET_CHAT:
-	{
+	case SC_PACKET_REMOVE_OBJECT:{
+		sc_packet_remove_object* my_packet = reinterpret_cast<sc_packet_remove_object*>(ptr);
+		int other_id = my_packet->id;
+		if (static_cast<TRIBE>(my_packet->object_type) != OBSTACLE) {
+			if (other_id == g_myid) {
+				avatar.hide();
+			}
+			else if (other_id < MAX_USER) {
+				players[other_id].hide();
+			}
+			else {
+				players[other_id].hide();
+			}
+		}
+		else {
+			obstacles[other_id].hide();
+		}
+		break;
+	}
+	case SC_PACKET_CHAT:{
 		sc_packet_chat* my_packet = reinterpret_cast<sc_packet_chat*>(ptr);
 		int other_id = my_packet->id;
 		/*if (other_id == g_myid) {
@@ -246,9 +310,15 @@ void ProcessPacket(char* ptr)
 		cout << my_packet->message << endl;
 		break;
 	}
-	case SC_PACKET_LOGIN_FAIL:
-	{
+	case SC_PACKET_LOGIN_FAIL:{
+		sc_packet_login_fail* my_packet = reinterpret_cast<sc_packet_login_fail*>(ptr);
 		cout << "로그인 실패" << endl;
+		if (my_packet->type == 0) {
+			cout << "이미 다른 주소에서 접속중인 아이디입니다" << endl;
+		}
+		else {
+			cout << "존재하지 않는 아이디 입니다" << endl;
+		}
 		g_window->close();
 	}
 	case SC_PACKET_STATUS_CHANGE: {
@@ -257,6 +327,7 @@ void ProcessPacket(char* ptr)
 		avatar.m_maxhp = packet->maxhp;
 		avatar.m_lv = packet->level;
 		my_exp = packet->exp;
+		max_exp = 100 * pow(2, (avatar.m_lv - 1));
 		break;
 	}
 	case SC_PACKET_DEAD: {
@@ -363,18 +434,18 @@ bool client_dead()
 	dead_text.setScale(sf::Vector2f(2.0f, 2.0f));
 
 
-	// hp바
-	float hp_bar_per = MAX_HP_BAR * ((float)avatar.m_hp / (float)avatar.m_maxhp);
-	sf::RectangleShape hp_bar(sf::Vector2f(hp_bar_per, 40));
-	sf::RectangleShape max_hp_bar(sf::Vector2f(400, 40));
-	hp_bar.setFillColor(sf::Color(255, 0, 0, 200));
-	max_hp_bar.setFillColor(sf::Color(5, 5, 5, 230));
-	hp_bar.setPosition(0.0f, 40);
-	max_hp_bar.setPosition(0.0f, 40);
+	//// hp바
+	//float hp_bar_per = MAX_HP_BAR * ((float)avatar.m_hp / (float)avatar.m_maxhp);
+	//sf::RectangleShape hp_bar(sf::Vector2f(hp_bar_per, 40));
+	//sf::RectangleShape max_hp_bar(sf::Vector2f(400, 40));
+	//hp_bar.setFillColor(sf::Color(255, 0, 0, 200));
+	//max_hp_bar.setFillColor(sf::Color(5, 5, 5, 230));
+	//hp_bar.setPosition(0.0f, 40);
+	//max_hp_bar.setPosition(0.0f, 40);
 
 	// draw()
-	g_window->draw(max_hp_bar);
-	g_window->draw(hp_bar);
+	/*g_window->draw(max_hp_bar);
+	g_window->draw(hp_bar);*/
 	g_window->draw(text);
 	g_window->draw(dead_box);
 	g_window->draw(dead_text);
@@ -419,6 +490,7 @@ bool client_main()
 		}
 	avatar.draw();
 	for (auto& pl : players) pl.draw();
+	for (auto& ob : obstacles) ob.draw();
 	sf::Text text;
 	text.setFont(g_font);
 	char buf[100];
@@ -426,19 +498,57 @@ bool client_main()
 	text.setString(buf);
 	
 	// hp바
-	float hp_bar_per = MAX_HP_BAR * ((float)avatar.m_hp / (float)avatar.m_maxhp);
-	sf::RectangleShape hp_bar(sf::Vector2f(hp_bar_per, 40));
-	sf::RectangleShape max_hp_bar(sf::Vector2f(400, 40));
+	float hp_bar_per = BAR_SIZE_WIDTH * ((float)avatar.m_hp / (float)avatar.m_maxhp);
+	sf::RectangleShape hp_bar(sf::Vector2f(hp_bar_per, BAR_SIZE_HEIGHT));
+	sf::RectangleShape max_hp_bar(sf::Vector2f(BAR_SIZE_WIDTH, BAR_SIZE_HEIGHT));
 	hp_bar.setFillColor(sf::Color(255, 0, 0, 200));
 	max_hp_bar.setFillColor(sf::Color(5, 5, 5, 230));
-	hp_bar.setPosition(0.0f, 40);
-	max_hp_bar.setPosition(0.0f, 40);
-	
+	hp_bar.setPosition(0.0f, BAR_SIZE_HEIGHT);
+	max_hp_bar.setPosition(0.0f, BAR_SIZE_HEIGHT);
+	sf::Text hp_text;
+	hp_text.setFont(g_font);
+	char hp_str[20];
+	sprintf_s(hp_str, "HP  : %d /", avatar.m_hp);
+	hp_text.setString(hp_str);
+	hp_text.setPosition(0, BAR_SIZE_HEIGHT);
+	sf::Text maxhp_text;
+	maxhp_text.setFont(g_font);
+	char maxhp_str[10];
+	sprintf_s(maxhp_str, "%d", avatar.m_maxhp);
+	maxhp_text.setString(maxhp_str);
+	maxhp_text.setPosition(BAR_SIZE_WIDTH /2, BAR_SIZE_HEIGHT);
+
+	// exp바
+	float exp_bar_per = BAR_SIZE_WIDTH * ((float)my_exp / (float)max_exp);
+	sf::RectangleShape exp_bar(sf::Vector2f(exp_bar_per, BAR_SIZE_HEIGHT));
+	sf::RectangleShape max_exp_bar(sf::Vector2f(BAR_SIZE_WIDTH, BAR_SIZE_HEIGHT));
+	exp_bar.setFillColor(sf::Color(0, 255, 0, 200));
+	max_exp_bar.setFillColor(sf::Color(5, 5, 5, 230));
+	exp_bar.setPosition(0.0f, BAR_SIZE_HEIGHT*2);
+	max_exp_bar.setPosition(0.0f, BAR_SIZE_HEIGHT*2);
+	sf::Text exp_text;
+	exp_text.setFont(g_font);
+	char exp_str[30];
+	sprintf_s(exp_str, "EXP : %d /", my_exp);
+	exp_text.setString(exp_str);
+	exp_text.setPosition(0, BAR_SIZE_HEIGHT*2);
+	sf::Text maxexp_text;
+	maxexp_text.setFont(g_font);
+	char maxexp_str[10];
+	sprintf_s(maxexp_str, "%d", max_exp);
+	maxexp_text.setString(maxexp_str);
+	maxexp_text.setPosition(BAR_SIZE_WIDTH /2, BAR_SIZE_HEIGHT*2);
+
 	// draw()
 	g_window->draw(max_hp_bar);
 	g_window->draw(hp_bar);
 	g_window->draw(text);
-	
+	g_window->draw(hp_text);
+	g_window->draw(maxhp_text);
+	g_window->draw(max_exp_bar);
+	g_window->draw(exp_bar);
+	g_window->draw(exp_text);
+	g_window->draw(maxexp_text);
 	return true;
 }
 
