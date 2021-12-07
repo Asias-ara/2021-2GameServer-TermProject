@@ -125,6 +125,10 @@
   <ItemGroup>
     <Image Include="chess2.png" />
     <Image Include="chessmap.bmp" />
+    <Image Include="resource\digimon.png" />
+    <Image Include="resource\map.png" />
+    <Image Include="resource\stone.png" />
+    <Image Include="resource\zelda.png" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Server\Server\2021_가을_protocol.h" />

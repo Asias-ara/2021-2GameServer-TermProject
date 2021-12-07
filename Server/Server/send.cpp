@@ -24,7 +24,8 @@ void send_move_packet(Player* pl, Npc* mover)
     packet.type = SC_PACKET_MOVE;
     packet.x = mover->get_x();
     packet.y = mover->get_y();
-    //packet.move_time =  clients[mover].last_move_time;
+    packet.move_time =  pl->last_move_time;
+    //cout <<"move_time" <<  pl->last_move_time << endl;
     packet.move_time = 0;
     pl->do_send(sizeof(packet), &packet);
 }

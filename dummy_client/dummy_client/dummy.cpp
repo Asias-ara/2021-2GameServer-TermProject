@@ -19,7 +19,7 @@ using namespace chrono;
 
 extern HWND		hWnd;
 
-const static int MAX_TEST = 8000;
+const static int MAX_TEST = 2000;
 const static int MAX_CLIENTS = MAX_TEST * 2;
 const static int INVALID_ID = -1;
 const static int MAX_PACKET_SIZE = 255;
@@ -144,12 +144,11 @@ void ProcessPacket(int ci, unsigned char packet[])
 				}
 			}
 		}
+		break;
 	}
-					   break;
 	case SC_PACKET_PUT_OBJECT: break;
 	case SC_PACKET_REMOVE_OBJECT: break;
-	case SC_PACKET_LOGIN_OK:
-	{
+	case SC_PACKET_LOGIN_OK:{
 		g_clients[ci].connected = true;
 		active_clients++;
 		sc_packet_login_ok* login_packet = reinterpret_cast<sc_packet_login_ok*>(packet);
@@ -159,12 +158,25 @@ void ProcessPacket(int ci, unsigned char packet[])
 		g_clients[my_id].x = login_packet->x;
 		g_clients[my_id].y = login_packet->y;
 
-		//cs_packet_teleport t_packet;
-		//t_packet.size = sizeof(t_packet);
-		//t_packet.type = CS_TELEPORT;
-		//SendPacket(my_id, &t_packet);
+		cs_packet_teleport t_packet;
+		t_packet.size = sizeof(t_packet);
+		t_packet.type = CS_PACKET_TELEPORT;
+		SendPacket(my_id, &t_packet);
+		break;
 	}
-	break;
+	case SC_PACKET_CHAT: break;
+	case SC_PACKET_STATUS_CHANGE: break;
+	case SC_PACKET_DEAD: {
+		g_clients[ci].connected = false;
+		break;
+	}
+	case SC_PACKET_REVIVE: {
+		sc_packet_revive* move_packet = reinterpret_cast<sc_packet_revive*>(packet);
+		g_clients[ci].connected = true;
+		g_clients[ci].x = move_packet->x;
+		g_clients[ci].y = move_packet->y;
+		break;
+	}
 	default: MessageBox(hWnd, L"Unknown Packet Type", L"ERROR", 0);
 		while (true);
 	}
@@ -239,10 +251,6 @@ void Worker_Thread()
 			}
 			delete over;
 		}
-		else if (OP_NPC_MOVE == over->event_type) {
-			// Not Implemented Yet
-			delete over;
-		}
 		else {
 			std::cout << "Unknown GQCS event!\n";
 			while (true);
@@ -314,7 +322,6 @@ void Adjust_Number_Of_Client()
 	CreateIoCompletionPort(reinterpret_cast<HANDLE>(g_clients[num_connections].client_socket), g_hiocp, num_connections, 0);
 
 	cs_packet_login l_packet;
-
 	int temp = num_connections;
 	sprintf_s(l_packet.name, "%d", temp);
 	l_packet.size = sizeof(l_packet);

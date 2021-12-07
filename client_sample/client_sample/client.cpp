@@ -176,12 +176,16 @@ OBJECT white_tile;
 OBJECT black_tile;
 
 sf::Texture* board;
-sf::Texture* pieces;
+sf::Texture* monsters;
+sf::Texture* stone;
+sf::Texture* hero;
 
 void client_initialize()
 {
 	board = new sf::Texture;
-	pieces = new sf::Texture;
+	monsters = new sf::Texture;
+	stone = new sf::Texture;
+	hero = new sf::Texture;
 	if (false == g_font.loadFromFile("cour.ttf")) {
 		cout << "Font Loading Error!\n";
 		while (true);
@@ -189,19 +193,26 @@ void client_initialize()
 	/*board->loadFromFile("chessmap.bmp");
 	pieces->loadFromFile("chess2.png");*/
 	board->loadFromFile("chessmap2.bmp");
-	pieces->loadFromFile("chess2.png");
+	monsters->loadFromFile("resource/digimon.png");
+	hero->loadFromFile("resource/zelda.png");
+	stone->loadFromFile("resource/stone.png");
+
+
 	white_tile = OBJECT{ *board, 4, 4, TILE_WIDTH, TILE_WIDTH };
 	black_tile = OBJECT{ *board, 49, 4, TILE_WIDTH, TILE_WIDTH };
-	avatar = OBJECT{ *pieces, 88, 0, 44, 44 };
+	avatar = OBJECT{ *hero, 0, 3, TILE_WIDTH, TILE_WIDTH };
 	
 	for (int i = 0; i < MAX_USER; ++i) {
-		players[i] = OBJECT{ *pieces, 0, 0, 44, 44 };
+		players[i] = OBJECT{ *hero, 0, 0, 44, 44 };
 	}
-	for (int i = NPC_ID_START; i <= NPC_ID_END; ++i) {
-		players[i] = OBJECT{ *pieces, 176, 0, 44, 44 };
+	for (int i = NPC_ID_START; i < NPC_ID_END - 10; ++i) {
+		players[i] = OBJECT{ *monsters, 135, 135, TILE_WIDTH, TILE_WIDTH };
+	}
+	for (int i = NPC_ID_END - 10; i <= NPC_ID_END; ++i) {
+		players[i] = OBJECT{ *monsters, 667, 135, TILE_WIDTH, TILE_WIDTH };
 	}
 	for (int i = 0; i <= MAX_OBSTACLE; ++i) {
-		obstacles[i] = Obstacle{ *pieces, 220, 0, 44, 44 };
+		obstacles[i] = Obstacle{ *stone, 45, 180, TILE_WIDTH, TILE_WIDTH };
 	}
 
 }
@@ -209,7 +220,9 @@ void client_initialize()
 void client_finish()
 {
 	delete board;
-	delete pieces;
+	delete monsters;
+	delete stone;
+	delete hero;
 }
 
 void ProcessPacket(char* ptr)

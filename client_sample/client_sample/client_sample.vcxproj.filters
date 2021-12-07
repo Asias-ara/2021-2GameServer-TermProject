@@ -35,6 +35,18 @@
     <Image Include="chessmap.bmp">
       <Filter>리소스 파일</Filter>
     </Image>
+    <Image Include="resource\digimon.png">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="resource\map.png">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="resource\stone.png">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="resource\zelda.png">
+      <Filter>리소스 파일</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\SFML\Config.hpp">

@@ -396,6 +396,7 @@ void process_packet(int client_id, unsigned char* p)
         // pl.last_move_time = packet->move_time;
         int x = pl->get_x();
         int y = pl->get_y();
+        pl->last_move_time = packet->move_time;
         switch (packet->direction) {
         case 0: if (y > 0) y--; break;
         case 1: if (y < (WORLD_HEIGHT - 1)) y++; break;
@@ -610,12 +611,18 @@ void process_packet(int client_id, unsigned char* p)
                 }
             }
         }
-        timer_event ev;
-        ev.obj_id = client_id;
-        ev.start_time = chrono::system_clock::now() + 1s;
-        ev.ev = EVENT_PLAYER_ATTACK;
-        ev.target_id = 0;
-        timer_queue.push(ev);
+        break;
+    }
+    case CS_PACKET_TELEPORT: {
+        pl->set_x(rand() % WORLD_WIDTH);
+        pl->set_y(rand() % WORLD_HEIGHT);
+        sc_packet_move packet;
+        packet.size = sizeof(packet);
+        packet.type = SC_PACKET_MOVE;
+        packet.id = pl->get_Id();
+        packet.x = pl->get_x();
+        packet.y = pl->get_y();
+        packet.move_time = pl->last_move_time;
         break;
     }
     }
@@ -904,11 +911,11 @@ void worker()
             lua_pop(L, 2);
             if (m) {
                 // 공격처리
-                cout << "NPC 공격" << endl;
+                //cout << "NPC 공격" << endl;
                 attack_success(client_id, exp_over->_target);
             }
             else {
-                cout << "공격실패" << endl;
+                //cout << "공격실패" << endl;
                 if (players[client_id]->get_active()) {
                     // 공격은 실패했지만 계속(그렇지만 1초후) 공격시도
                     timer_event ev;
@@ -944,7 +951,7 @@ void worker()
             break;
         }
         case OP_NPC_REVIVE: {
-            cout << "NPC 부활" << endl;
+            //cout << "NPC 부활" << endl;
             // 상태 바꿔주고
             players[client_id]->state_lock.lock();
             players[client_id]->set_state(ST_INGAME);
@@ -1082,7 +1089,7 @@ void return_npc_position(int npc_id)
         return;
     }
     // players[npc_id]->set_active(false); // 공격을 멈춤
-    cout << "돌아가자" << endl;
+    //cout << "돌아가자" << endl;
     unordered_set<int> old_viewlist;
     unordered_set<int> new_viewlist;
     for (auto& obj : players) {

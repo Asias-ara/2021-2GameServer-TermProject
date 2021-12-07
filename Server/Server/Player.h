@@ -16,6 +16,8 @@ public:
 
     mutex               ob_vl;
     unordered_set<int>  ob_viewlist;
+
+    int last_move_time;
 public:
     Player(int id) : Npc(id)
     {
@@ -25,6 +27,7 @@ public:
         _y = 0;
         set_tribe(HUMAN);
         _attack_active = false;
+        last_move_time = 0;
     }
     ~Player()
     {
