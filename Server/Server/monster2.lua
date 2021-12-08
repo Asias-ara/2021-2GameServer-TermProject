@@ -28,7 +28,7 @@ function event_npc_move(player)
 end
 
 function return_my_position()
-   return my_x, my_y, true;
+   return my_x, my_y;
 end
 
 function attack_range(player)

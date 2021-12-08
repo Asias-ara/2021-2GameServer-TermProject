@@ -1,11 +1,13 @@
 #pragma once
 #include "EXP_OVER.h"
 #include "Npc.h"
+#include "SkillBuf.h"
 class Player : public Npc
 {
 private:
     int                 _login_id;
     atomic_bool	        _attack_active;		// NPC가 가만히 안있고 움직일때
+    atomic_bool         _skill_active[3] = { false };
 public:
 	SOCKET				_socket;
 	EXP_OVER			_recv_over;
@@ -17,7 +19,8 @@ public:
     mutex               ob_vl;
     unordered_set<int>  ob_viewlist;
 
-    int last_move_time;
+    int                 last_move_time;
+    int                 direction;  // 0 : up, 1: down, 2: left, 3:right 
 public:
     Player(int id) : Npc(id)
     {
@@ -28,6 +31,7 @@ public:
         set_tribe(HUMAN);
         _attack_active = false;
         last_move_time = 0;
+        direction = 1;
     }
     ~Player()
     {
@@ -93,6 +97,16 @@ public:
 
     void set_attack_active(bool atk) {
         _attack_active = atk;
+    }
+
+    bool get_skill_active(int skill_type)
+    {
+        return _skill_active[skill_type];
+    }
+
+    void set_skill_active(int skill_type, bool act)
+    {
+        _skill_active[skill_type] = act;
     }
 
 };

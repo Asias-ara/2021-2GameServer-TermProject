@@ -7,7 +7,8 @@ enum COMP_OP { OP_RECV, OP_SEND, OP_ACCEPT, OP_NPC_MOVE,
 	OP_NPC_ATTACK, OP_AUTO_PLAYER_HP, OP_PLAYER_REVIVE, OP_NPC_REVIVE,
 	OP_PLAYER_ATTACK};
 enum EVENT_TYPE { EVENT_NPC_MOVE, EVENT_NPC_ATTACK, EVENT_AUTO_PLAYER_HP,
-	EVENT_PLAYER_REVIVE, EVENT_NPC_REVIVE, EVENT_PLAYER_ATTACK };
+	EVENT_PLAYER_REVIVE, EVENT_NPC_REVIVE, EVENT_PLAYER_ATTACK,
+	EVENT_SKILL_COOLTIME};
 enum TRIBE { HUMAN, MONSTER, AGRO, BOSS, OBSTACLE };
 const int BUFSIZE = 256;
 const int RANGE = 7;
@@ -33,7 +34,6 @@ const char CS_PACKET_ATTACK = 3;
 const char CS_PACKET_CHAT = 4;
 const char CS_PACKET_TELEPORT = 5;
 
-
 const char SC_PACKET_LOGIN_OK = 1;
 const char SC_PACKET_MOVE = 2;
 const char SC_PACKET_PUT_OBJECT = 3;
@@ -43,6 +43,7 @@ const char SC_PACKET_LOGIN_FAIL = 6;
 const char SC_PACKET_STATUS_CHANGE = 7;
 //---------------------------------------------------
 // 추가사항
+const char CS_PACKET_SKILL = 6;
 const char SC_PACKET_DEAD = 8;
 const char SC_PACKET_REVIVE = 9;
 //---------------------------------------------------
@@ -137,6 +138,15 @@ struct sc_packet_status_change {
 
 #pragma pack(pop)
 // 추가 사항 -----------------------------
+
+struct cs_packet_skill {
+	unsigned char size;
+	char type;
+	char skill_type;	
+	// 0 : 대각선까지 범위형 공격
+	// 1 : 직선 쭉 뚫고 가는 공격
+	// 2 : 버프형 공격(공격이 10초동안 50%상승)
+};
 
 struct sc_packet_dead {
 	unsigned char size;

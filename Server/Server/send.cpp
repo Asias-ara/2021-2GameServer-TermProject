@@ -26,7 +26,6 @@ void send_move_packet(Player* pl, Npc* mover)
     packet.y = mover->get_y();
     packet.move_time =  pl->last_move_time;
     //cout <<"move_time" <<  pl->last_move_time << endl;
-    packet.move_time = 0;
     pl->do_send(sizeof(packet), &packet);
 }
 

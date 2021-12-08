@@ -34,6 +34,9 @@ constexpr auto WINDOW_HEIGHT = TILE_WIDTH * SCREEN_WIDTH + 10;
 //constexpr auto BUF_SIZE = MAX_BUFFER;
 const int BAR_SIZE_WIDTH = 400;
 const int BAR_SIZE_HEIGHT = 40;
+const int CHAT_WIDTH = 400;
+const int CHAT_HEIGHT = 120;
+
 
 int g_myid;
 int g_x_origin;
@@ -41,6 +44,72 @@ int g_y_origin;
 bool dead_screen = false;
 
 sf::RenderWindow* g_window;
+sf::RenderWindow* chatting_window;
+//-----------------------------------------------------------------
+
+class TextField : public sf::Transformable {
+private:
+	unsigned int m_size;
+	sf::Font m_font;
+	std::string m_text;
+	sf::RectangleShape m_rect;
+	bool m_hasfocus;
+public:
+	TextField(unsigned int maxChars) : m_size(maxChars),
+		m_rect(sf::Vector2f(400, 20)), // 15 pixels per char, 20 pixels height, you can tweak
+		m_hasfocus(false)
+	{
+		m_font.loadFromFile("C:/Windows/Fonts/Arial.ttf"); // I'm working on Windows, you can put your own font instead
+		m_rect.setOutlineThickness(2);
+		m_rect.setFillColor(sf::Color::White);
+		m_rect.setOutlineColor(sf::Color(127, 127, 127));
+		m_rect.setPosition(this->getPosition());
+	}
+
+	void setPosition(float x, float y) {
+		sf::Transformable::setPosition(x, y);
+		m_rect.setPosition(x, y);
+	}
+
+	bool contains(sf::Vector2f point) const {
+		return m_rect.getGlobalBounds().contains(point);
+	}
+
+	void draw() {
+
+		sf::Text temp_text;
+		temp_text.setFont(m_font);
+		temp_text.setString(m_text);
+		g_window->draw(temp_text);
+		g_window->draw(m_rect);
+	}
+
+	void setFocus(bool focus) {
+		m_hasfocus = focus;
+		if (focus) {
+			m_rect.setOutlineColor(sf::Color::Blue);
+		}
+		else {
+			m_rect.setOutlineColor(sf::Color(127, 127, 127)); // Gray color
+		}
+	}
+
+	void handleInput(sf::Event e) {
+		if (!m_hasfocus || e.type != sf::Event::TextEntered)
+			return;
+
+		if (e.text.unicode == 8) {   // Delete key
+			m_text = m_text.substr(0, m_text.size() - 1);
+		}
+		else if (m_text.size() < m_size) {
+			m_text += e.text.unicode;
+		}
+	}
+
+	~TextField() {}
+};
+
+//---------------------------------------------------------------
 sf::Font g_font;
 
 
@@ -205,10 +274,10 @@ void client_initialize()
 	for (int i = 0; i < MAX_USER; ++i) {
 		players[i] = OBJECT{ *hero, 0, 0, 44, 44 };
 	}
-	for (int i = NPC_ID_START; i < NPC_ID_END - 10; ++i) {
+	for (int i = NPC_ID_START; i < NPC_ID_END - 7000; ++i) {
 		players[i] = OBJECT{ *monsters, 135, 135, TILE_WIDTH, TILE_WIDTH };
 	}
-	for (int i = NPC_ID_END - 10; i <= NPC_ID_END; ++i) {
+	for (int i = NPC_ID_END - 7000; i <= NPC_ID_END; ++i) {
 		players[i] = OBJECT{ *monsters, 667, 135, TILE_WIDTH, TILE_WIDTH };
 	}
 	for (int i = 0; i <= MAX_OBSTACLE; ++i) {
@@ -390,6 +459,11 @@ void process_data(char* net_buf, size_t io_byte)
 	}
 }
 
+void chatting_window_update()
+{
+
+}
+
 bool client_dead()
 {
 	char net_buf[BUF_SIZE];
@@ -562,6 +636,7 @@ bool client_main()
 	g_window->draw(exp_bar);
 	g_window->draw(exp_text);
 	g_window->draw(maxexp_text);
+
 	return true;
 }
 
@@ -594,11 +669,20 @@ void send_attack_packet()
 	socket.send(&packet, sizeof(packet), sent);
 }
 
+void send_skill_packet(int skill_type)
+{
+	cs_packet_skill packet;
+	packet.size = sizeof(packet);
+	packet.type = CS_PACKET_SKILL;
+	packet.skill_type = skill_type;
+	size_t sent = 0;
+	socket.send(&packet, sizeof(packet), sent);
+}
+
 int main()
 {
 	wcout.imbue(locale("korean"));
 	sf::Socket::Status status = socket.connect("127.0.0.1", SERVER_PORT);
-
 
 	socket.setBlocking(false);
 
@@ -617,6 +701,10 @@ int main()
 	avatar.set_name(name.c_str());
 	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "2D CLIENT");
 	g_window = &window;
+	
+
+	TextField tf(20);
+	tf.setPosition(0, 880);
 
 	while (window.isOpen())
 	{
@@ -643,6 +731,15 @@ int main()
 				case sf::Keyboard::A:
 					send_attack_packet();
 					break;
+				case sf::Keyboard::Num1:
+					send_skill_packet(0);
+					break;
+				case sf::Keyboard::Num2:
+					send_skill_packet(1);
+					break;
+				case sf::Keyboard::Num3:
+					send_skill_packet(2);
+					break;
 				case sf::Keyboard::Escape:
 					window.close();
 					break;
@@ -654,8 +751,20 @@ int main()
 		window.clear();
 		if (false == client_main())
 			window.close();
+
+		if (event.type == sf::Event::MouseButtonReleased) {
+			auto pos = sf::Mouse::getPosition(window);
+			tf.setFocus(false);
+			if (tf.contains(sf::Vector2f(pos))) {
+				tf.setFocus(true);
+			}
+		}
+		else {
+			tf.handleInput(event);
+		}
+		tf.draw();
 		window.display();
-		
+
 
 		while (dead_screen) {
 			window.clear();

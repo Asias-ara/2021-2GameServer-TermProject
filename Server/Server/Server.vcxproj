@@ -147,6 +147,7 @@
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="send.cpp" />
     <ClCompile Include="server.cpp" />
+    <ClCompile Include="SkillBuf.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="2021_가을_protocol.h" />
@@ -161,6 +162,7 @@
     <ClInclude Include="Obstacle.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="send.h" />
+    <ClInclude Include="SkillBuf.h" />
     <ClInclude Include="stdafx.h" />
   </ItemGroup>
   <ItemGroup>
