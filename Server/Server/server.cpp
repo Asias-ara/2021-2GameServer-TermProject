@@ -182,7 +182,7 @@ void attack_success(int p_id, int target)
             if (players[target]->get_tribe() == BOSS)
                 get_exp = get_exp * 2;
             char mess[MAX_CHAT_SIZE];
-            sprintf_s(mess, MAX_CHAT_SIZE, "%s를 무찔러서 %d의 경험치를 얻었습니다",
+            sprintf_s(mess, MAX_CHAT_SIZE, "Kill %s, you get %d experience",
                  players[target]->get_name(), get_exp);
             send_chat_packet(reinterpret_cast<Player*>(players[p_id]), p_id, mess);
             send_status_change_packet(reinterpret_cast<Player*>(players[p_id]));
@@ -190,7 +190,7 @@ void attack_success(int p_id, int target)
             if (players[p_id]->get_exp() + get_exp >= max_exp) {
                 players[p_id]->set_lv(players[p_id]->get_lv() + 1);
                 players[p_id]->set_exp(players[p_id]->get_exp()+ get_exp - max_exp);
-                sprintf_s(mess, MAX_CHAT_SIZE, "%d레벨로 레벨업 하였습니다",
+                sprintf_s(mess, MAX_CHAT_SIZE, "Level up : %d",
                     players[p_id]->get_lv());
                 send_chat_packet(reinterpret_cast<Player*>(players[p_id]), p_id, mess);
                 send_status_change_packet(reinterpret_cast<Player*>(players[p_id]));
@@ -227,7 +227,7 @@ void attack_success(int p_id, int target)
         // 플레이어가 공격을 당한 것이므로 hp정보가 바뀌었으므로 그것을 보내주자
         send_status_change_packet(reinterpret_cast<Player*>(players[target]));
         char mess[MAX_CHAT_SIZE];
-        sprintf_s(mess, MAX_CHAT_SIZE, "%s가 %s를 공격으로 %d의 데미지를 입었습니다",
+        sprintf_s(mess, MAX_CHAT_SIZE, "%s -> %s damage : %d",
             players[p_id]->get_name(), players[target]->get_name(), damage);
         send_chat_packet(reinterpret_cast<Player*>(players[target]), target, mess);
 
@@ -250,7 +250,7 @@ void attack_success(int p_id, int target)
     }
     else {  // 플레이어가 공격을 입힘
         char mess[MAX_CHAT_SIZE];
-        sprintf_s(mess, MAX_CHAT_SIZE, "%s가 %s를 공격으로 %d의 데미지를 입혔습니다",
+        sprintf_s(mess, MAX_CHAT_SIZE, "%s -> %s damage : %d",
             players[p_id]->get_name(), players[target]->get_name(), damage);
         send_chat_packet(reinterpret_cast<Player*>(players[p_id]), p_id, mess);
     }
@@ -614,6 +614,24 @@ void process_packet(int client_id, unsigned char* p)
                     }
                 }
             }
+        }
+        break;
+    }
+    case CS_PACKET_CHAT: {
+        cs_packet_chat* packet = reinterpret_cast<cs_packet_chat*>(p);
+        char c_temp[MAX_CHAT_SIZE];
+        sprintf_s(c_temp, MAX_CHAT_SIZE, "%s : %s", pl->get_name(), packet->message);
+        for (auto& s_pl : players) {
+            s_pl->state_lock.lock();
+            if (s_pl->get_state() != ST_INGAME) {
+                s_pl->state_lock.unlock();
+                continue;
+            }
+            s_pl->state_lock.unlock();
+            if (s_pl->get_tribe() == MONSTER) break;
+            
+            send_chat_packet(reinterpret_cast<Player*>(s_pl), client_id, c_temp);
+            
         }
         break;
     }

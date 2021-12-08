@@ -54,6 +54,8 @@ void send_remove_object_packet(Player* pl, Npc* victim)
 
 void send_chat_packet(Player* pl, int my_id, char* mess)
 {
+    cout << pl->get_name() << endl;
+    cout << mess << endl;
     sc_packet_chat packet;
     packet.id = my_id;
     packet.size = sizeof(packet);

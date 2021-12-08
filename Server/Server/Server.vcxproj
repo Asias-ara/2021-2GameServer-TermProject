@@ -143,7 +143,6 @@
     <ClCompile Include="database.cpp" />
     <ClCompile Include="EXP_OVER.cpp" />
     <ClCompile Include="Npc.cpp" />
-    <ClCompile Include="Obstacle.cpp" />
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="send.cpp" />
     <ClCompile Include="server.cpp" />
@@ -159,7 +158,6 @@
     <ClInclude Include="include\luaconf.h" />
     <ClInclude Include="include\lualib.h" />
     <ClInclude Include="Npc.h" />
-    <ClInclude Include="Obstacle.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="send.h" />
     <ClInclude Include="SkillBuf.h" />

@@ -3,6 +3,7 @@
 #include <SFML/Network.hpp>
 #include <iostream>
 #include <chrono>
+#include <vector>
 using namespace std;
 
 #ifdef _DEBUG
@@ -44,31 +45,40 @@ int g_y_origin;
 bool dead_screen = false;
 
 sf::RenderWindow* g_window;
-sf::RenderWindow* chatting_window;
+
+vector<string> c_vector;
+
 //-----------------------------------------------------------------
 
 class TextField : public sf::Transformable {
 private:
 	unsigned int m_size;
 	sf::Font m_font;
-	std::string m_text;
+	std::wstring m_text;
 	sf::RectangleShape m_rect;
+	sf::RectangleShape log_rect;
 	bool m_hasfocus;
 public:
 	TextField(unsigned int maxChars) : m_size(maxChars),
 		m_rect(sf::Vector2f(400, 20)), // 15 pixels per char, 20 pixels height, you can tweak
-		m_hasfocus(false)
+		m_hasfocus(false),
+		log_rect(sf::Vector2f(400, 200))
 	{
 		m_font.loadFromFile("C:/Windows/Fonts/Arial.ttf"); // I'm working on Windows, you can put your own font instead
 		m_rect.setOutlineThickness(2);
 		m_rect.setFillColor(sf::Color::White);
 		m_rect.setOutlineColor(sf::Color(127, 127, 127));
 		m_rect.setPosition(this->getPosition());
+
+		log_rect.setFillColor(sf::Color(250, 250, 255, 100));
+		log_rect.setPosition(this->getPosition().x, this->getPosition().y - 180);
+
 	}
 
 	void setPosition(float x, float y) {
 		sf::Transformable::setPosition(x, y);
 		m_rect.setPosition(x, y);
+		log_rect.setPosition(x, y - 180);
 	}
 
 	bool contains(sf::Vector2f point) const {
@@ -76,12 +86,26 @@ public:
 	}
 
 	void draw() {
-
 		sf::Text temp_text;
 		temp_text.setFont(m_font);
 		temp_text.setString(m_text);
-		g_window->draw(temp_text);
+		temp_text.setPosition(this->getPosition());
+		temp_text.scale(0.5f, 0.5f);
+		temp_text.setFillColor(sf::Color::Black);
+
+		g_window->draw(log_rect);
 		g_window->draw(m_rect);
+		g_window->draw(temp_text);
+
+
+		for (int i = 0; i < c_vector.size(); i++) {
+			string m_string = c_vector[i];
+			wstring w_string;
+			w_string.assign(m_string.begin(), m_string.end());
+			temp_text.setString(w_string);
+			temp_text.setPosition(this->getPosition().x, this->getPosition().y - 15*(11-i) - 10);
+			g_window->draw(temp_text);
+		}
 	}
 
 	void setFocus(bool focus) {
@@ -94,6 +118,10 @@ public:
 		}
 	}
 
+	bool getFocus() {
+		return m_hasfocus;
+	}
+
 	void handleInput(sf::Event e) {
 		if (!m_hasfocus || e.type != sf::Event::TextEntered)
 			return;
@@ -101,11 +129,23 @@ public:
 		if (e.text.unicode == 8) {   // Delete key
 			m_text = m_text.substr(0, m_text.size() - 1);
 		}
+		else if (e.text.unicode == 13) {
+			cout << "패킷보내기" << endl;
+			string m_string;
+			m_string.assign(m_text.begin(), m_text.end());
+			cs_packet_chat packet;
+			packet.size = sizeof(packet);
+			packet.type = CS_PACKET_CHAT;
+			strncpy_s(packet.message, m_string.c_str(), MAX_CHAT_SIZE);
+			size_t sent = 0;
+			socket.send(&packet, sizeof(packet), sent);
+			m_text.erase();
+		}
 		else if (m_text.size() < m_size) {
+			wcout << e.text.unicode << endl;
 			m_text += e.text.unicode;
 		}
 	}
-
 	~TextField() {}
 };
 
@@ -377,7 +417,7 @@ void ProcessPacket(char* ptr)
 		}
 		break;
 	}
-	case SC_PACKET_CHAT:{
+	case SC_PACKET_CHAT: {
 		sc_packet_chat* my_packet = reinterpret_cast<sc_packet_chat*>(ptr);
 		int other_id = my_packet->id;
 		/*if (other_id == g_myid) {
@@ -389,7 +429,14 @@ void ProcessPacket(char* ptr)
 		else {
 			players[other_id].set_chat(my_packet->message);
 		}*/
-		cout << my_packet->message << endl;
+		//cout << my_packet->message << endl;
+		if (c_vector.size() < 11) {
+			c_vector.push_back(my_packet->message);
+		}
+		else {
+			c_vector.erase(c_vector.begin());
+			c_vector.push_back(my_packet->message);
+		}
 		break;
 	}
 	case SC_PACKET_LOGIN_FAIL:{
@@ -713,7 +760,18 @@ int main()
 		{
 			if (event.type == sf::Event::Closed)
 				window.close();
-			if (event.type == sf::Event::KeyPressed) {
+			if (event.type == sf::Event::MouseButtonReleased) {
+				auto pos = sf::Mouse::getPosition(window);
+				tf.setFocus(false);
+				if (tf.contains(sf::Vector2f(pos))) {
+					tf.setFocus(true);
+				}
+			}
+			else {
+				tf.handleInput(event);
+			}
+
+			if (event.type == sf::Event::KeyPressed && tf.getFocus()==false) {
 				int direction = -1;
 				switch (event.key.code) {
 				case sf::Keyboard::Left:
@@ -746,22 +804,13 @@ int main()
 				}
 				if (-1 != direction) send_move_packet(direction);
 			}
+
 		}
 
 		window.clear();
 		if (false == client_main())
 			window.close();
 
-		if (event.type == sf::Event::MouseButtonReleased) {
-			auto pos = sf::Mouse::getPosition(window);
-			tf.setFocus(false);
-			if (tf.contains(sf::Vector2f(pos))) {
-				tf.setFocus(true);
-			}
-		}
-		else {
-			tf.handleInput(event);
-		}
 		tf.draw();
 		window.display();
 
