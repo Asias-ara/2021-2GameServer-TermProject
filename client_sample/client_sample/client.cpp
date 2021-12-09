@@ -420,16 +420,6 @@ void ProcessPacket(char* ptr)
 	case SC_PACKET_CHAT: {
 		sc_packet_chat* my_packet = reinterpret_cast<sc_packet_chat*>(ptr);
 		int other_id = my_packet->id;
-		/*if (other_id == g_myid) {
-			avatar.set_chat(my_packet->message);
-		}
-		else if (other_id < MAX_USER) {
-			players[other_id].set_chat(my_packet->message);
-		}
-		else {
-			players[other_id].set_chat(my_packet->message);
-		}*/
-		//cout << my_packet->message << endl;
 		if (c_vector.size() < 11) {
 			c_vector.push_back(my_packet->message);
 		}
@@ -504,11 +494,6 @@ void process_data(char* net_buf, size_t io_byte)
 			io_byte = 0;
 		}
 	}
-}
-
-void chatting_window_update()
-{
-
 }
 
 bool client_dead()
@@ -641,13 +626,13 @@ bool client_main()
 	max_hp_bar.setPosition(0.0f, BAR_SIZE_HEIGHT);
 	sf::Text hp_text;
 	hp_text.setFont(g_font);
-	char hp_str[20];
+	char hp_str[30];
 	sprintf_s(hp_str, "HP  : %d /", avatar.m_hp);
 	hp_text.setString(hp_str);
 	hp_text.setPosition(0, BAR_SIZE_HEIGHT);
 	sf::Text maxhp_text;
 	maxhp_text.setFont(g_font);
-	char maxhp_str[10];
+	char maxhp_str[30];
 	sprintf_s(maxhp_str, "%d", avatar.m_maxhp);
 	maxhp_text.setString(maxhp_str);
 	maxhp_text.setPosition(BAR_SIZE_WIDTH /2, BAR_SIZE_HEIGHT);
@@ -668,7 +653,7 @@ bool client_main()
 	exp_text.setPosition(0, BAR_SIZE_HEIGHT*2);
 	sf::Text maxexp_text;
 	maxexp_text.setFont(g_font);
-	char maxexp_str[10];
+	char maxexp_str[30];
 	sprintf_s(maxexp_str, "%d", max_exp);
 	maxexp_text.setString(maxexp_str);
 	maxexp_text.setPosition(BAR_SIZE_WIDTH /2, BAR_SIZE_HEIGHT*2);

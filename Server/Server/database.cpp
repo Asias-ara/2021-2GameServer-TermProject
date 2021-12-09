@@ -8,7 +8,7 @@ void HandleDiagnosticRecord(SQLHANDLE hHandle, SQLSMALLINT hType, RETCODE RetCod
 {
 	SQLSMALLINT iRec = 0;
 	SQLINTEGER iError;
-	WCHAR wszMessage[1000];
+	WCHAR wszMessage[100];
 	WCHAR wszState[SQL_SQLSTATE_SIZE + 1];
 	if (RetCode == SQL_INVALID_HANDLE) {
 		fwprintf(stderr, L"Invalid handle! n");
@@ -114,7 +114,7 @@ bool Search_Id(Player* pl, char* login_id)
 			SQLCancel(hstmt);
 			cout << "id 생성으로 간다" << endl;
 			// exec 다시 설정
-			char temp2[70];
+			char temp2[100];
 			sprintf_s(temp2, sizeof(temp2), "EXEC create_player %s, insert_%d", login_id, atoi(login_id));
 			int strSize2 = MultiByteToWideChar(CP_ACP, 0, temp2, -1, NULL, NULL);
 			wchar_t* exec2 = new WCHAR[strSize2];
@@ -124,10 +124,6 @@ bool Search_Id(Player* pl, char* login_id)
 			retcode = SQLExecDirect(hstmt, (SQLWCHAR*)exec2, SQL_NTS);
 			
 			if (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO) {
-				// Fetch and print each row of data. On an error, display a message and exit.
-				// retcode = SQLFetch(hstmt);
-				//SQLLEN* pcrow = new SQLLEN;
-				//retcode = SQLRowCount(hstmt, pcrow);
 				delete exec2;
 				if (retcode == SQL_ERROR || retcode == SQL_SUCCESS_WITH_INFO) {
 					HandleDiagnosticRecord(hstmt, SQL_HANDLE_STMT, retcode);
@@ -186,7 +182,7 @@ void Save_position(Player* pl)
 {
 	SQLRETURN retcode;
 
-	char temp[60];
+	char temp[100];
 	sprintf_s(temp, sizeof(temp), "EXEC save_player_info %d, %d, %d, %d, %d, %d, %d", 
 		pl->get_login_id(), pl->get_x(), pl->get_y(), pl->get_hp(),
 		pl->get_lv(), pl->get_exp(), pl->get_maxhp());

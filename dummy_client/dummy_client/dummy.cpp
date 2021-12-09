@@ -166,6 +166,10 @@ void ProcessPacket(int ci, unsigned char packet[])
 	}
 	case SC_PACKET_CHAT: break;
 	case SC_PACKET_STATUS_CHANGE: break;
+	case SC_PACKET_LOGIN_FAIL: {
+		DisconnectClient(ci);
+		break;
+	}
 	case SC_PACKET_DEAD: {
 		g_clients[ci].connected = false;
 		break;
