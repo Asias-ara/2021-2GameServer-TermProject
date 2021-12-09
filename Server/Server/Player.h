@@ -9,6 +9,7 @@ private:
     atomic_bool	        _attack_active;		// NPC가 가만히 안있고 움직일때
     atomic_bool         _skill_active[3] = { false };
 public:
+    atomic_bool         _auto_hp = false;
 	SOCKET				_socket;
 	EXP_OVER			_recv_over;
 	int					_prev_size;
@@ -61,7 +62,7 @@ public:
         }
     }
 
-    void do_send(int num_bytes, void* mess)
+    bool do_send(int num_bytes, void* mess)
     {
         EXP_OVER* ex_over = new EXP_OVER(OP_SEND, num_bytes, mess);
         int ret = WSASend(_socket, &ex_over->_wsa_buf, 1, 0, 0, &ex_over->_wsa_over, NULL);
@@ -75,10 +76,11 @@ public:
                     MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                     (LPTSTR)&lpMsgBuf, 0, 0);
                 wcout << lpMsgBuf << endl;
-                //while (true);
                 LocalFree(lpMsgBuf);
+                return false;
             }
         }
+        return true;
     }
 
     // --------------------------

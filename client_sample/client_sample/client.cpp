@@ -314,10 +314,10 @@ void client_initialize()
 	for (int i = 0; i < MAX_USER; ++i) {
 		players[i] = OBJECT{ *hero, 0, 0, 44, 44 };
 	}
-	for (int i = NPC_ID_START; i < NPC_ID_END - 7000; ++i) {
+	for (int i = NPC_ID_START; i < NPC_ID_END - 10000; ++i) {
 		players[i] = OBJECT{ *monsters, 135, 135, TILE_WIDTH, TILE_WIDTH };
 	}
-	for (int i = NPC_ID_END - 7000; i <= NPC_ID_END; ++i) {
+	for (int i = NPC_ID_END - 10000; i <= NPC_ID_END; ++i) {
 		players[i] = OBJECT{ *monsters, 667, 135, TILE_WIDTH, TILE_WIDTH };
 	}
 	for (int i = 0; i <= MAX_OBSTACLE; ++i) {
