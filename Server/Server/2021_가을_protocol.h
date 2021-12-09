@@ -9,7 +9,7 @@ enum COMP_OP { OP_RECV, OP_SEND, OP_ACCEPT, OP_NPC_MOVE,
 enum EVENT_TYPE { EVENT_NPC_MOVE, EVENT_NPC_ATTACK, EVENT_AUTO_PLAYER_HP,
 	EVENT_PLAYER_REVIVE, EVENT_NPC_REVIVE, EVENT_PLAYER_ATTACK,
 	EVENT_SKILL_COOLTIME};
-enum TRIBE { HUMAN, MONSTER, AGRO, BOSS, OBSTACLE };
+enum TRIBE { HUMAN, MONSTER, BOSS, REALBOSS, OBSTACLE };
 const int BUFSIZE = 256;
 const int RANGE = 7;
 const int AGRORANGE = 5;
@@ -23,7 +23,7 @@ const int  WORLD_WIDTH = 2000;
 const int  MAX_NAME_SIZE = 20;
 const int  MAX_CHAT_SIZE = 100;
 const int  MAX_USER = 10000;
-// const int  MAX_NPC = 200000;
+//const int  MAX_NPC = 200000;
 const int  MAX_NPC = 10000;		// 디버깅 용
 constexpr int NPC_ID_START = MAX_USER;
 constexpr int NPC_ID_END = MAX_USER + MAX_NPC - 1;
@@ -86,7 +86,7 @@ struct sc_packet_login_ok {
 	char	name[MAX_NAME_SIZE];	// 기존 프로토콜에 없어서 추가해주었습니다
 	short	x, y;
 	short	level;
-	short	hp, maxhp;
+	int		hp, maxhp;
 	int		exp;
 	short	tribe;					// 기존 프로토콜에 없어서 추가해주었습니다
 };
@@ -132,7 +132,7 @@ struct sc_packet_status_change {
 	unsigned char size;
 	char type;
 	short	level;
-	short	hp, maxhp;
+	int	hp, maxhp;
 	int		exp;
 };
 

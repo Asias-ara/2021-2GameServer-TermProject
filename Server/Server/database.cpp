@@ -186,7 +186,7 @@ void Save_position(Player* pl)
 {
 	SQLRETURN retcode;
 
-	char temp[60];
+	char temp[100];
 	sprintf_s(temp, sizeof(temp), "EXEC save_player_info %d, %d, %d, %d, %d, %d, %d", 
 		pl->get_login_id(), pl->get_x(), pl->get_y(), pl->get_hp(),
 		pl->get_lv(), pl->get_exp(), pl->get_maxhp());

@@ -6,7 +6,7 @@ class Player : public Npc
 {
 private:
     int                 _login_id;
-    atomic_bool	        _attack_active;		// NPC가 가만히 안있고 움직일때
+    atomic_bool	        _attack_active;
     atomic_bool         _skill_active[3] = { false };
 public:
 	SOCKET				_socket;

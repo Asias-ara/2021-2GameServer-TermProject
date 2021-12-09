@@ -314,13 +314,14 @@ void client_initialize()
 	for (int i = 0; i < MAX_USER; ++i) {
 		players[i] = OBJECT{ *hero, 0, 0, 44, 44 };
 	}
-	for (int i = NPC_ID_START; i < NPC_ID_END - 7000; ++i) {
+	for (int i = NPC_ID_START; i < NPC_ID_END - 5000; ++i) {
 		players[i] = OBJECT{ *monsters, 135, 135, TILE_WIDTH, TILE_WIDTH };
 	}
-	for (int i = NPC_ID_END - 7000; i <= NPC_ID_END; ++i) {
+	for (int i = NPC_ID_END - 5000; i < NPC_ID_END; ++i) {
 		players[i] = OBJECT{ *monsters, 667, 135, TILE_WIDTH, TILE_WIDTH };
 	}
-	for (int i = 0; i <= MAX_OBSTACLE; ++i) {
+	players[NPC_ID_END] = OBJECT{ *monsters, 577, 90, TILE_WIDTH, TILE_WIDTH };
+	for (int i = 0; i < MAX_OBSTACLE; ++i) {
 		obstacles[i] = Obstacle{ *stone, 45, 180, TILE_WIDTH, TILE_WIDTH };
 	}
 
@@ -377,7 +378,8 @@ void ProcessPacket(char* ptr)
 	case SC_PACKET_PUT_OBJECT:{
 		sc_packet_put_object* my_packet = reinterpret_cast<sc_packet_put_object*>(ptr);
 		int id = my_packet->id;
-
+		if (id == NPC_ID_END) 
+			cout << "´ë±â" << endl;
 		if (static_cast<TRIBE>(my_packet->object_type) != OBSTACLE) {
 			if (id < MAX_USER) { // PLAYER
 				players[id].set_name(my_packet->name);
@@ -668,7 +670,7 @@ bool client_main()
 	exp_text.setPosition(0, BAR_SIZE_HEIGHT*2);
 	sf::Text maxexp_text;
 	maxexp_text.setFont(g_font);
-	char maxexp_str[10];
+	char maxexp_str[30];
 	sprintf_s(maxexp_str, "%d", max_exp);
 	maxexp_text.setString(maxexp_str);
 	maxexp_text.setPosition(BAR_SIZE_WIDTH /2, BAR_SIZE_HEIGHT*2);

@@ -90,5 +90,8 @@
     <None Include="monster2.lua">
       <Filter>소스 파일</Filter>
     </None>
+    <None Include="monboss.lua">
+      <Filter>소스 파일</Filter>
+    </None>
   </ItemGroup>
 </Project>

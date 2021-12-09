@@ -28,6 +28,7 @@ struct timer_event {
     EVENT_TYPE ev;
     /*     target_id
     스킬 관련 쿨타임의 경우 : 어떤 스킬인지 넣어줌
+    NPC의 움직임의 경우 : 어그로꾼의 플레이어 id를 넣어줌
     */
     int target_id;      
 
@@ -61,7 +62,7 @@ bool is_near(int a, int b)
 
 bool is_agro_near(int a, int b)
 {
-    if (players[b]->get_tribe() != BOSS) return false;
+    if (players[b]->get_tribe() != BOSS && players[b]->get_tribe() != REALBOSS) return false;
     if (AGRORANGE < abs(players[a]->get_x() - players[b]->get_x())) return false;
     if (AGRORANGE < abs(players[a]->get_y() - players[b]->get_y())) return false;
     return true;
@@ -88,8 +89,6 @@ bool check_move_alright(int x, int y)
 {
     for (auto& ob : obstacles) {
         if (ob.x == x && ob.y == y) {
-            cout << "장애물 : " << ob.x << ob.y << endl;
-            cout << "이동 에상 : " << x << y << endl;
             return false;
         }
     }
@@ -143,16 +142,15 @@ void Activate_Npc_Move_Event(int target, int player_id)
 void attack_success(int p_id, int target)
 {
     int damage = (players[p_id]->get_lv() * 10);
-    cout << "데미지 : " << damage << endl;
-    cout << "맞기전 hp : " << players[target]->get_hp() << endl;
     int target_hp = players[target]->get_hp() - damage;
     players[target]->set_hp(target_hp);
-    cout << players[target]->get_name() << "이 공격받음 남은 hp : " << players[target]->get_hp() << endl;
     if (target_hp <= 0) {
         players[target]->state_lock.lock();
         players[target]->set_state(ST_DEAD);
         players[target]->state_lock.unlock();
         if (target < NPC_ID_START) {    // 죽은게 플레이어이다
+            if (players[p_id]->get_tribe() == REALBOSS)
+                players[p_id]->set_hp(players[p_id]->get_maxhp());
             players[p_id]->set_active(false);
             // 죽은것이 플레이어라면 죽었다는 패킷을 보내준다
             sc_packet_dead packet;
@@ -169,6 +167,7 @@ void attack_success(int p_id, int target)
             timer_queue.push(ev);
         }
         else {  // NPC라면 30초 후에 부활할 수 있도록 하자
+
             players[target]->set_active(false);
             timer_event ev;
             ev.obj_id = target;
@@ -567,9 +566,16 @@ void process_packet(int client_id, unsigned char* p)
     case CS_PACKET_ATTACK: {
         // cs_packet_attack* packet = reinterpret_cast<cs_packet_attack*>(p);
         // 플레이어가 공격하고 반경 1칸 이내에 몬스터가 있다면 전투
+        cout << pl->get_attack_active() << endl;
         if (pl->get_attack_active()) break;
-        cout << "공격" << endl;
         pl->set_attack_active(true);
+
+        timer_event ev;
+        ev.obj_id = client_id;
+        ev.start_time = chrono::system_clock::now() + 1s;
+        ev.ev = EVENT_PLAYER_ATTACK;
+        ev.target_id = 0;
+        timer_queue.push(ev);
 
         for (int i = NPC_ID_START; i <= NPC_ID_END; ++i) {
             players[i]->state_lock.lock();
@@ -580,12 +586,11 @@ void process_packet(int client_id, unsigned char* p)
             players[i]->state_lock.unlock();
             if (players[i]->get_x() == pl->get_x()) {
                 if (players[i]->get_y() >= pl->get_y() - 1 && players[i]->get_y() <= pl->get_y() + 1) {
-                    cout << "범위 1" << endl;
                     attack_success(client_id, players[i]->get_Id());    // 데미지 계산
                     // 몬스터의 자동공격을 넣어주자
                     if (players[i]->get_active() == false && players[i]->get_tribe() == MONSTER) {
                         players[i]->set_active(true);
-                        timer_event ev;
+                        ev;
                         ev.obj_id = i;
                         ev.start_time = chrono::system_clock::now() + 1s;
                         ev.ev = EVENT_NPC_ATTACK;
@@ -598,12 +603,11 @@ void process_packet(int client_id, unsigned char* p)
             }
             else if (players[i]->get_y() == pl->get_y()) {
                 if (players[i]->get_x() >= pl->get_x() - 1 && players[i]->get_x() <= pl->get_x() + 1) {
-                    cout << "범위 2" << endl;
                     attack_success(client_id, players[i]->get_Id());    // 데미지 계산
                     // 몬스터의 자동공격을 넣어주자
                     if (players[i]->get_active() == false && players[i]->get_tribe() == MONSTER) {
                         players[i]->set_active(true);
-                        timer_event ev;
+                        ev;
                         ev.obj_id = i;
                         ev.start_time = chrono::system_clock::now() + 1s;
                         ev.ev = EVENT_NPC_ATTACK;
@@ -1019,6 +1023,8 @@ void worker()
             //쫒아가던 타겟이 살아있는가
             if (players[target_id]->get_state() != ST_INGAME) {
                 players[target_id]->state_lock.unlock();
+                if (players[client_id]->get_tribe() == REALBOSS)
+                    players[client_id]->set_hp(players[client_id]->get_maxhp());
                 players[client_id]->set_active(false);
                 return_npc_position(client_id);
                 delete exp_over;
@@ -1044,6 +1050,8 @@ void worker()
             }
             else {
                 // 원래 자리로 돌아가자
+                if (players[client_id]->get_tribe() == REALBOSS)
+                    players[client_id]->set_hp(players[client_id]->get_maxhp());
                 players[client_id]->set_active(false);
                 return_npc_position(client_id);
             }
@@ -1051,7 +1059,7 @@ void worker()
             break;
         }
         case OP_NPC_ATTACK: {
-            cout << "여긴 되냐??" << endl;
+
             // 죽은 상태나 공격하는 상태인지 아닌지 확인
             players[client_id]->state_lock.lock();
             if ((players[client_id]->get_state() != ST_INGAME) || (false == players[client_id]->get_active())) {
@@ -1061,10 +1069,39 @@ void worker()
             }
             players[client_id]->state_lock.unlock();
 
+
+            // 보스 몬스터의 특수패턴상황인지 판단
+            if (players[client_id]->get_tribe() == REALBOSS) {
+                players[client_id]->lua_lock.lock();
+                cout << "REAL BOSS" << endl;
+                lua_State* L = players[client_id]->L;
+                lua_getglobal(L, "skill_pattern");
+                int error = lua_pcall(L, 0, 1, 0);
+                int pattern_type = lua_tointeger(L, -1);
+                cout << "Pattern_type :" << pattern_type << endl;
+                lua_pop(L, 2);
+                players[client_id]->lua_lock.unlock();
+                if (pattern_type != 0) {
+                    if (pattern_type == 1) {
+                        players[client_id]->lua_lock.lock();
+                        lua_State* L = players[client_id]->L;
+                        lua_getglobal(L, "first_skill");
+                        lua_pushnumber(L, pattern_type);
+                        int error = lua_pcall(L, 1, 0, 0);
+                        lua_pop(L, 1);
+                        players[client_id]->lua_lock.unlock();
+                        cout << "보스 패턴1 (hp : " << players[client_id]->get_hp()<< ")" << endl;
+                        break;
+                    }
+                    else { 
+
+                    }
+                }
+            }
+
             players[client_id]->lua_lock.lock();
             lua_State* L = players[client_id]->L;
             lua_getglobal(L, "attack_range");
-            cout << exp_over->_target << endl;
             lua_pushnumber(L, exp_over->_target);
             int error = lua_pcall(L, 1, 1, 0);
             if (error != 0) {
@@ -1076,11 +1113,9 @@ void worker()
             lua_pop(L, 2);
             if (m) {
                 // 공격처리
-                //cout << "NPC 공격" << endl;
                 attack_success(client_id, exp_over->_target);
             }
             else {
-                //cout << "공격실패" << endl;
                 if (players[client_id]->get_active()) {
                     // 공격은 실패했지만 계속(그렇지만 1초후) 공격시도
                     timer_event ev;
@@ -1098,6 +1133,12 @@ void worker()
         case OP_AUTO_PLAYER_HP: {
             Player* pl = reinterpret_cast<Player*>(players[client_id]);
             pl->set_hp(pl->get_hp() + (pl->get_maxhp()*0.1));
+            pl->state_lock.lock();
+            if (pl->get_state() != ST_INGAME) {
+                pl->state_lock.unlock();
+                break;
+            }
+            pl->state_lock.unlock();
             if (pl->get_hp() >= pl->get_maxhp())
                 pl->set_hp(pl->get_maxhp());
             else {
@@ -1117,27 +1158,47 @@ void worker()
             break;
         }
         case OP_NPC_REVIVE: {
-            //cout << "NPC 부활" << endl;
             // 상태 바꿔주고
-            players[client_id]->state_lock.lock();
-            players[client_id]->set_state(ST_INGAME);
-            players[client_id]->state_lock.unlock();
-            // NPC의 정보 가져오기
-            players[client_id]->lua_lock.lock();
-            lua_State* L = players[client_id]->L;
-            lua_getglobal(L, "set_uid");
-            lua_pushnumber(L, client_id);
-            int error = lua_pcall(L, 1, 3, 0);
-            if (error != 0) {
-                //cout << "ERROR : " << lua_tostring(L, -1);
-                cout << "초기화 오류" << endl;
+            if (players[client_id]->get_tribe() != REALBOSS) {
+                players[client_id]->state_lock.lock();
+                players[client_id]->set_state(ST_INGAME);
+                players[client_id]->state_lock.unlock();
+                // NPC의 정보 가져오기
+                players[client_id]->lua_lock.lock();
+                lua_State* L = players[client_id]->L;
+                lua_getglobal(L, "set_uid");
+                lua_pushnumber(L, client_id);
+                int error = lua_pcall(L, 1, 3, 0);
+                if (error != 0) {
+                    cout << "초기화 오류" << endl;
+                }
+                players[client_id]->set_lv(lua_tointeger(L, -3));
+                players[client_id]->set_hp(lua_tointeger(L, -2));
+                players[client_id]->set_name(lua_tostring(L, -1));
+                lua_pop(L, 4);// eliminate set_uid from stack after call
+                players[client_id]->lua_lock.unlock();
             }
-
-            players[client_id]->set_lv(lua_tointeger(L, -3));
-            players[client_id]->set_hp(lua_tointeger(L, -2));
-            players[client_id]->set_name(lua_tostring(L, -1));
-            lua_pop(L, 4);// eliminate set_uid from stack after call
-            players[client_id]->lua_lock.unlock();
+            else {
+                players[client_id]->state_lock.lock();
+                players[client_id]->set_state(ST_INGAME);
+                players[client_id]->state_lock.unlock();
+                // NPC의 정보 가져오기
+                players[client_id]->lua_lock.lock();
+                lua_State* L = players[client_id]->L;
+                lua_getglobal(L, "set_uid");
+                lua_pushnumber(L, client_id);
+                int error = lua_pcall(L, 1, 5, 0);
+                if (error != 0) {
+                    cout << "초기화 오류" << endl;
+                }
+                players[client_id]->set_lv(lua_tointeger(L, -5));
+                players[client_id]->set_hp(lua_tointeger(L, -4));
+                players[client_id]->set_name(lua_tostring(L, -3));
+                players[client_id]->set_x(lua_tointeger(L, -2));
+                players[client_id]->set_y(lua_tointeger(L, -1));
+                lua_pop(L, 6);// eliminate set_uid from stack after call
+                players[client_id]->lua_lock.unlock();
+            }
             // 부활하는 NPC주변 얘들에게 보이게 해주자
             unordered_set <int> nearlist;
             for (auto& other : players) {
@@ -1183,11 +1244,21 @@ int API_get_y(lua_State* L)
     return 1;
 }
 
+int API_get_hp(lua_State* L)
+{
+    int user_id =
+        (int)lua_tointeger(L, -1);
+    lua_pop(L, 2);
+    int hp = players[user_id]->get_hp();
+    lua_pushnumber(L, hp);
+    return 1;
+}
+
 void initialise_NPC()
 {
     cout << "NPC 로딩중" << endl;
     char name[MAX_NAME_SIZE];
-    for (int i = NPC_ID_START; i < NPC_ID_END-7000; ++i) {
+    for (int i = NPC_ID_START; i < NPC_ID_END-5000; ++i) {
         sprintf_s(name, "NPC %d", i);
         players[i] = new Npc(i, name);
         lua_State* L = players[i]->L = luaL_newstate();
@@ -1202,7 +1273,6 @@ void initialise_NPC()
         error = lua_pcall(L, 3, 3, 0);
 
         if (error != 0) {
-            //cout << "ERROR : " << lua_tostring(L, -1);
             cout << "초기화 오류" << endl;
         }
 
@@ -1214,9 +1284,9 @@ void initialise_NPC()
 
         lua_register(L, "API_get_x", API_get_x);
         lua_register(L, "API_get_y", API_get_y);
-
+        players[i]->set_maxhp(players[i]->get_hp());
     }
-    for (int i = NPC_ID_END - 7000; i <= NPC_ID_END; ++i) {
+    for (int i = NPC_ID_END - 5000; i < NPC_ID_END; ++i) {
         sprintf_s(name, "NPC %d", i);
         players[i] = new Npc(i, name);
 
@@ -1229,11 +1299,7 @@ void initialise_NPC()
         lua_pushnumber(L, players[i]->get_x());
         lua_pushnumber(L, players[i]->get_y());
         error = lua_pcall(L, 3, 3, 0);
-
-        cout << " 어그로 몬스터 : " << players[i]->get_x() << "," << players[i]->get_y() << endl;
-
         if (error != 0) {
-            //cout << "ERROR : " << lua_tostring(L, -1);
             cout << "초기화 오류" << endl;
         }
         players[i]->set_tribe(BOSS);
@@ -1244,9 +1310,33 @@ void initialise_NPC()
 
         lua_register(L, "API_get_x", API_get_x);
         lua_register(L, "API_get_y", API_get_y);
+        players[i]->set_maxhp(players[i]->get_hp());
 
     }
+    players[NPC_ID_END] = new Npc(NPC_ID_END);
 
+    lua_State* L = players[NPC_ID_END]->L = luaL_newstate();
+    luaL_openlibs(L);
+    int error = luaL_loadfile(L, "monboss.lua") ||
+        lua_pcall(L, 0, 0, 0);
+    lua_getglobal(L, "set_uid");
+    lua_pushnumber(L, NPC_ID_END);
+    error = lua_pcall(L, 1, 5, 0);
+    if (error != 0) {
+        cout << "보스 초기화 오류" << endl;
+    }
+    players[NPC_ID_END]->set_tribe(REALBOSS);
+    players[NPC_ID_END]->set_lv(lua_tointeger(L, -5));
+    players[NPC_ID_END]->set_hp(lua_tointeger(L, -4));
+    players[NPC_ID_END]->set_name(lua_tostring(L, -3));
+    players[NPC_ID_END]->set_x(lua_tointeger(L, -2));
+    players[NPC_ID_END]->set_y(lua_tointeger(L, -1));
+    lua_pop(L, 6);// eliminate set_uid from stack after call
+    players[NPC_ID_END]->set_maxhp(players[NPC_ID_END]->get_hp());
+
+    lua_register(L, "API_get_x", API_get_x);
+    lua_register(L, "API_get_y", API_get_y);
+    lua_register(L, "API_get_hp", API_get_hp);
     cout << "NPC로딩 완료" << endl;
 }
 
@@ -1255,8 +1345,6 @@ void return_npc_position(int npc_id)
     if (players[npc_id]->get_active() == true) {
         return;
     }
-    // players[npc_id]->set_active(false); // 공격을 멈춤
-    //cout << "돌아가자" << endl;
     unordered_set<int> old_viewlist;
     unordered_set<int> new_viewlist;
     for (auto& obj : players) {
@@ -1344,7 +1432,6 @@ void return_npc_position(int npc_id)
     players[npc_id]->state_lock.unlock();
 
     if (my_pos_fail) {    // 더 움직여야돼
-        cout << "움직여" << endl;
         timer_event ev;
         ev.obj_id = npc_id;
         ev.start_time = chrono::system_clock::now() + 1s;
@@ -1356,7 +1443,6 @@ void return_npc_position(int npc_id)
 
 void do_npc_move(int npc_id, int target)
 {
-    cout << "타겟 : " << target << endl;
     unordered_set<int> old_viewlist;
     unordered_set<int> new_viewlist;
     for (auto& obj : players) {
@@ -1368,6 +1454,8 @@ void do_npc_move(int npc_id, int target)
     }
 
     if (old_viewlist.size() == 0) {
+        if (players[npc_id]->get_tribe() == REALBOSS)
+            players[npc_id]->set_hp(players[npc_id]->get_maxhp());
         players[npc_id]->set_active(false);
         return_npc_position(npc_id);
         return;
@@ -1499,7 +1587,6 @@ void do_timer()
             if (dura <= 0ms) {
                 EXP_OVER* ex_over = new EXP_OVER;
                 if (ev.ev == EVENT_PLAYER_ATTACK) {
-                    cout << "처리좀" << endl;
                     reinterpret_cast<Player*>(players[ev.obj_id])->set_attack_active(false);
                     continue;
                 }

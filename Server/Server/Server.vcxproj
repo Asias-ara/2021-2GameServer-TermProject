@@ -167,6 +167,7 @@
     <Library Include="lua54.lib" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="monboss.lua" />
     <None Include="monster.lua" />
     <None Include="monster2.lua" />
   </ItemGroup>
